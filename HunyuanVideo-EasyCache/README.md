@@ -26,7 +26,7 @@ This document provides the implementation for accelerating the [**HunyuanVideo**
 
 EasyCache significantly accelerates inference speed while maintaining high visual fidelity.
 
-**Prompt: **"A cat walks on the grass, realistic style."
+**Prompt:** "A cat walks on the grass, realistic style."
 
 | HunyuanVideo (Baseline, H20) | EasyCache (Ours) |
 | :---: | :---: |
