@@ -26,7 +26,7 @@ This document provides the implementation for accelerating the [**HunyuanVideo**
 
 EasyCache significantly accelerates inference speed while maintaining high visual fidelity.
 
-**Prompt:** "A cat walks on the grass, realistic style."
+**Prompt: "A cat walks on the grass, realistic style." (Base Acceleration)**
 
 | HunyuanVideo (Baseline, H20) | EasyCache (Ours) |
 | :---: | :---: |
@@ -37,35 +37,74 @@ EasyCache significantly accelerates inference speed while maintaining high visua
 
 ### 🚀 Usage Instructions
 
-**1. Prerequisites** ⚙️
+This section provides instructions for two settings: base acceleration with EasyCache alone and combined acceleration using EasyCache with SVG.
+
+#### **1. Base Acceleration (EasyCache Only)**
+
+**a. Prerequisites** ⚙️
 
 Before you begin, please follow the instructions in the [official HunyuanVideo repository](https://github.com/Tencent/HunyuanVideo) to configure the required environment and download the pretrained model weights.
 
-**2. Copy Files** 📂
+**b. Copy Files** 📂
 
 Copy `easycache_sample_video.py` into the root directory of your local `HunyuanVideo` project.
 
-**3. Run Inference** ▶️
+**c. Run Inference** ▶️
 
-Execute the following command from the root of the `HunyuanVideo` project to generate a video with EasyCache enabled.
+Execute the following command from the root of the `HunyuanVideo` project to generate a video. To generate videos in 720p resolution, set the `--video-size` argument to `720 1280`. You can also specify your own custom prompts.
 
 ```bash
 python3 easycache_sample_video.py \
     --video-size 544 960 \
     --video-length 129 \
     --infer-steps 50 \
-    --prompt "A cat walks on the grass, realistic style." \
+    --prompt "Your own prompt" \
     --flow-reverse \
     --use-cpu-offload \
     --save-path ./results \
     --seed 42
 ```
 
+#### **2. Combined Acceleration (SVG with EasyCache)**
+
+**a. Prerequisites** ⚙️
+
+Ensure you have set up the environments for both [HunyuanVideo](https://github.com/Tencent/HunyuanVideo) and [SVG](https://github.com/svg-project/Sparse-VideoGen).
+
+**b. Copy Files** 📂
+
+Copy `hyvideo_svg_easycache.py` into the root directory of your local `HunyuanVideo` project.
+
+**c. Run Inference** ▶️
+
+Execute the following command to generate a 720p video using both SVG and EasyCache for maximum acceleration. You can also specify your own custom prompts.
+
+```bash
+python3 hyvideo_svg_easycache.py \
+        --video-size 720 1280 \
+        --video-length 129 \
+        --infer-steps 50 \
+        --prompt "Your own prompt" \
+        --embedded-cfg-scale 6.0 \
+        --flow-shift 7.0 \
+        --flow-reverse \
+        --use-cpu-offload \
+        --save-path ./results \
+        --output_path ./results \
+        --pattern "SVG" \
+        --num_sampled_rows 64 \
+        --sparsity 0.2 \
+        --first_times_fp 0.055 \
+        --first_layers_fp 0.025 \
+        --record_attention \
+        --seed 42
+```
+
 ### 📊 Evaluating Video Similarity
 
 We provide a simple script to quickly evaluate the similarity between two videos (e.g., the baseline result and your generated result) using common metrics.
 
-**Usage:**
+**Usage**
 
 ```bash
 # install required packages.
@@ -76,3 +115,6 @@ python tools/video_metrics.py --original_video video1.mp4 --generated_video vide
 
 - `--original_video`: Path to the first video (e.g., the baseline).
 - `--generated_video`: Path to the second video (e.g., the one generated with EasyCache).
+
+
+
