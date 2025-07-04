@@ -38,7 +38,7 @@ EasyCache significantly accelerates inference speed while maintaining high visua
 | HunyuanVideo (Baseline, 720p, H20) | SVG with EasyCache (Ours) |
 |:---:|:---:|
 | ![Baseline 720p GIF](./videos/baseline_720p.gif) | ![EasyCache+SVG 720p GIF](./videos/svg_with_easycache_720p.gif) |
-| Inference Time: ~6572s | Inference Time: ~1773s (3.71x Speedup) |
+| **Inference Time: ~6572s** | **Inference Time: ~1773s (3.71x Speedup)** |
 
 
 ---
