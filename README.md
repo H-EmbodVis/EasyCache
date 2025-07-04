@@ -9,16 +9,18 @@ Kaijin Chen<sup>1</sup>, Tianrui Feng<sup>1</sup>,
   <a href="https://scholar.google.com/citations?user=4uE10I0AAAAJ&hl=en" target="_blank" rel="noopener noreferrer">Hengshuang Zhao</a><sup>3</sup>,
   <a href="https://scholar.google.com/citations?user=UeltiQ4AAAAJ&hl=en" target="_blank" rel="noopener noreferrer">Xiang Bai</a><sup>1†</sup>
 
-  <sup>1</sup> Huazhong University of Science and Technology, <sup>2</sup> MEGVII Technology, <sup>3</sup> University of Hong Kong <br>
+  <sup>1</sup> Huazhong University of Science and Technology, <sup>2</sup> MEGVII Technology, <sup>3</sup> The University of Hong Kong <br>
 
-(\*) Equal contribution. (†) Project leader.
+(\*) Equal contribution. (†) Corresponding author.
 
+  [![arXiv](https://img.shields.io/badge/Arxiv-2507.02860-b31b1b.svg?logo=arXiv)](https://arxiv.org/abs/2507.02860)
   [![Project](https://img.shields.io/badge/Homepage-project-orange.svg?logo=googlehome)](https://H-EmbodVis.github.io/EasyCache/)
   [![Code License](https://img.shields.io/badge/Code%20License-Apache_2.0-green.svg)](https://github.com/LMD0311/EasyCache/blob/main/LICENSE)
 
 </div>
 
 ## 📰 News
+- **[2025/07/04]** 🎉 Release the [**paper**](https://arxiv.org/abs/2507.02860) of EasyCache.
 - **[2025/07/02]** EasyCache for [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/HunyuanVideo-EasyCache) is released.
 
 ## Abstract
@@ -81,6 +83,16 @@ Video synchronization issues may occur due to network load, for improved visuali
 | :---: | :---: | :---: | :---: |
 | ![Baseline Latte](./static/videos/Comparison/gt/7.gif) | ![Our Latte](./static/videos/Comparison/our/7.gif) | ![TeaCache Latte](./static/videos/Comparison/teacache/7.gif) | ![PAB Latte](./static/videos/Comparison/pab/7.gif) |
 
+
+**Compatibility with SVG**
+
+SVG with EasyCache on HunyuanVideo can achieve more than 3x speedup.
+
+https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
+
+
+
+
 ## 🛠️ Usage
 Detailed instructions for each supported model are provided in their respective directories. We are continuously working to extend support to more models.
 
@@ -96,5 +108,17 @@ For complete instructions, please refer to the [README](./HunyuanVideo-EasyCache
 - [x] Support Sparse-VideoGen on HunyuanVideo
 - [ ] Support Wan2.1 T2V
 
-## Acknowledgements
+## 🌹 Acknowledgements
 We would like to thank the contributors to the [Wan2.1](https://github.com/Wan-Video/Wan2.1), [HunyuanVideo](https://github.com/Tencent-Hunyuan/HunyuanVideo), [OpenSora](https://github.com/hpcaitech/Open-Sora), and [SVG](https://github.com/svg-project/Sparse-VideoGen) repositories, for their open research and exploration.
+
+## 📖 Citation
+
+If you find this repository useful in your research, please consider giving a star ⭐ and a citation.
+```bibtex
+@article{zhou2025easycache,
+  title={Less is Enough: Training-Free Video Diffusion Acceleration via Runtime-Adaptive Caching},
+  author={Zhou, Xin and Liang, Dingkang and Chen, Kaijin and and Feng, Tianrui and Chen, Xiwu and Lin, Hongkai and Ding, Yikang and Tan, Feiyang and Zhao, Hengshuang and Bai, Xiang},
+  journal={arXiv preprint arXiv:2507.02860},
+  year={2025}
+}
+```
