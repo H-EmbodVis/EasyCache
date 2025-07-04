@@ -21,7 +21,7 @@ Kaijin Chen<sup>1</sup>, Tianrui Feng<sup>1</sup>,
 
 ## 📰 News
 - **[2025/07/04]** 🎉 Release the [**paper**](https://arxiv.org/abs/2507.02860) of EasyCache.
-- **[2025/07/02]** EasyCache for [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/HunyuanVideo-EasyCache) is released.
+- **[2025/07/02]** EasyCache for [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4HunyuanVideo) is released.
 
 ## Abstract
 Video generation models have demonstrated remarkable performance, yet their broader adoption remains constrained by slow inference speeds and substantial computational costs, primarily due to the iterative nature of the denoising process. Addressing this bottleneck is essential for democratizing advanced video synthesis technologies and enabling their integration into real-world applications. This work proposes EasyCache, a training-free acceleration framework for video diffusion models. EasyCache introduces a lightweight, runtime-adaptive caching mechanism that dynamically reuses previously computed transformation vectors, avoiding redundant computations during inference. Unlike prior approaches, EasyCache requires no offline profiling, pre-computation, or extensive parameter tuning. We conduct comprehensive studies on various large-scale video generation models, including OpenSora, Wan2.1, and HunyuanVideo. Our method achieves leading acceleration performance, reducing inference time by up to 2.1-3.3× compared to the original baselines while maintaining high visual fidelity with a significant up to 36% PSNR improvement compared to the previous SOTA method. This improvement makes our EasyCache a efficient and highly accessible solution for high-quality video generation in both research and practical applications.
@@ -74,14 +74,14 @@ Video synchronization issues may occur due to network load, for improved visuali
 
 | Baseline | Ours (2.3x) | TeaCache (1.7x) | PAB (1.2x) |
 | :---: | :---: | :---: | :---: |
-| ![Baseline Video](./static/videos/Comparison/gt/6.gif) | ![Our Video](./static/videos/Comparison/our/6.gif) | ![TeaCache Video](./static/videos/Comparison/teacache/6.gif) | ![PAB Video](./static/videos/Comparison/pab/6.gif) |
+| ![Baseline Video](./static/gt/6.gif) | ![Our Video](./static/our/6.gif) | ![TeaCache Video](./static/teacache/6.gif) | ![PAB Video](./static/pab/6.gif) |
 
 **Prompt: "A top-down view of a barista creating latte art, skillfully pouring milk to form the letters 'TPAMI' on coffee."**
 *(Wan2.1-14B)*
 
 | Baseline | Ours (2.34x) | TeaCache (1.46x) | PAB (1.87x) |
 | :---: | :---: | :---: | :---: |
-| ![Baseline Latte](./static/videos/Comparison/gt/7.gif) | ![Our Latte](./static/videos/Comparison/our/7.gif) | ![TeaCache Latte](./static/videos/Comparison/teacache/7.gif) | ![PAB Latte](./static/videos/Comparison/pab/7.gif) |
+| ![Baseline Latte](./static/gt/7.gif) | ![Our Latte](./static/our/7.gif) | ![TeaCache Latte](./static/teacache/7.gif) | ![PAB Latte](./static/pab/7.gif) |
 
 
 **Compatibility with SVG**
@@ -100,7 +100,7 @@ Detailed instructions for each supported model are provided in their respective 
 1. **Prerequisites**: Set up the environment and download weights from the official HunyuanVideo repository.
 2. **Copy Files**: Place the EasyCache script files into your local HunyuanVideo project directory.
 3. **Run**: Execute the provided Python script to run inference with acceleration.
-For complete instructions, please refer to the [README](./HunyuanVideo-EasyCache/README.md).
+For complete instructions, please refer to the [README](./EasyCache4HunyuanVideo/README.md).
 
 ## 🎯 To Do
 
