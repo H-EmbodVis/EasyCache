@@ -19,9 +19,36 @@ Kaijin Chen<sup>1</sup>, Tianrui Feng<sup>1</sup>,
 
 </div>
 
+## 🎬 Visual Comparisons
+Video synchronization issues may occur due to network load, for improved visualization, see the [project page](https://H-EmbodVis.github.io/EasyCache/)
+
+**Prompt: "Grassland at dusk, wild horses galloping, golden light flickering across manes."**
+*(HunyuanVideo)*
+
+| Baseline | Ours (2.3x) | TeaCache (1.7x) | PAB (1.2x) |
+| :---: | :---: | :---: | :---: |
+| ![Baseline Video](./demo/gt/6.gif) | ![Our Video](./demo/our/6.gif) | ![TeaCache Video](./demo/teacache/6.gif) | ![PAB Video](./demo/pab/6.gif) |
+
+**Prompt: "A top-down view of a barista creating latte art, skillfully pouring milk to form the letters 'TPAMI' on coffee."**
+*(Wan2.1-14B)*
+
+| Baseline | Ours (2.34x) | TeaCache (1.46x) | PAB (1.87x) |
+| :---: | :---: | :---: | :---: |
+| ![Baseline Latte](./demo/gt/7.gif) | ![Our Latte](./demo/our/7.gif) | ![TeaCache Latte](./demo/teacache/7.gif) | ![PAB Latte](./demo/pab/7.gif) |
+
+
+**Compatibility with SVG**
+
+SVG with EasyCache on HunyuanVideo can achieve more than 3x speedup.
+
+https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
+
+
 ## 📰 News
+- **If you like our project, please give us a star ⭐ on GitHub for the latest update.**
 - **[2025/07/04]** 🎉 Release the [**paper**](https://arxiv.org/abs/2507.02860) of EasyCache.
-- **[2025/07/02]** EasyCache for [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4HunyuanVideo) is released.
+- **[2025/07/03]** 🔥 EasyCache for SVSparse-VideoGen on [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4HunyuanVideo) is released.
+- **[2025/07/02]** 🔥 EasyCache for [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4HunyuanVideo) is released.
 
 ## Abstract
 Video generation models have demonstrated remarkable performance, yet their broader adoption remains constrained by slow inference speeds and substantial computational costs, primarily due to the iterative nature of the denoising process. Addressing this bottleneck is essential for democratizing advanced video synthesis technologies and enabling their integration into real-world applications. This work proposes EasyCache, a training-free acceleration framework for video diffusion models. EasyCache introduces a lightweight, runtime-adaptive caching mechanism that dynamically reuses previously computed transformation vectors, avoiding redundant computations during inference. Unlike prior approaches, EasyCache requires no offline profiling, pre-computation, or extensive parameter tuning. We conduct comprehensive studies on various large-scale video generation models, including OpenSora, Wan2.1, and HunyuanVideo. Our method achieves leading acceleration performance, reducing inference time by up to 2.1-3.3× compared to the original baselines while maintaining high visual fidelity with a significant up to 36% PSNR improvement compared to the previous SOTA method. This improvement makes our EasyCache a efficient and highly accessible solution for high-quality video generation in both research and practical applications.
@@ -66,33 +93,6 @@ EasyCache is orthogonal to other acceleration techniques, such as the efficient 
 | SVG (w/ **Ours**) | **1981s** | **3.33x** | **27.26** |
 
 
-## 🎬 Visual Comparisons
-Video synchronization issues may occur due to network load, for improved visualization, see the [project page](https://H-EmbodVis.github.io/EasyCache/)
-
-**Prompt: "Grassland at dusk, wild horses galloping, golden light flickering across manes."**
-*(HunyuanVideo)*
-
-| Baseline | Ours (2.3x) | TeaCache (1.7x) | PAB (1.2x) |
-| :---: | :---: | :---: | :---: |
-| ![Baseline Video](./static/gt/6.gif) | ![Our Video](./static/our/6.gif) | ![TeaCache Video](./static/teacache/6.gif) | ![PAB Video](./static/pab/6.gif) |
-
-**Prompt: "A top-down view of a barista creating latte art, skillfully pouring milk to form the letters 'TPAMI' on coffee."**
-*(Wan2.1-14B)*
-
-| Baseline | Ours (2.34x) | TeaCache (1.46x) | PAB (1.87x) |
-| :---: | :---: | :---: | :---: |
-| ![Baseline Latte](./static/gt/7.gif) | ![Our Latte](./static/our/7.gif) | ![TeaCache Latte](./static/teacache/7.gif) | ![PAB Latte](./static/pab/7.gif) |
-
-
-**Compatibility with SVG**
-
-SVG with EasyCache on HunyuanVideo can achieve more than 3x speedup.
-
-https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
-
-
-
-
 ## 🛠️ Usage
 Detailed instructions for each supported model are provided in their respective directories. We are continuously working to extend support to more models.
 
@@ -107,6 +107,7 @@ For complete instructions, please refer to the [README](./EasyCache4HunyuanVideo
 - [x] Support HunyuanVideo
 - [x] Support Sparse-VideoGen on HunyuanVideo
 - [ ] Support Wan2.1 T2V
+- [ ] Support FLUX
 
 ## 🌹 Acknowledgements
 We would like to thank the contributors to the [Wan2.1](https://github.com/Wan-Video/Wan2.1), [HunyuanVideo](https://github.com/Tencent-Hunyuan/HunyuanVideo), [OpenSora](https://github.com/hpcaitech/Open-Sora), and [SVG](https://github.com/svg-project/Sparse-VideoGen) repositories, for their open research and exploration.
