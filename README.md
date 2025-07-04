@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
 ## 📰 News
 - **If you like our project, please give us a star ⭐ on GitHub for the latest update.**
 - **[2025/07/04]** 🎉 Release the [**paper**](https://arxiv.org/abs/2507.02860) of EasyCache.
-- **[2025/07/03]** 🔥 EasyCache for SVSparse-VideoGen on [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4HunyuanVideo) is released.
+- **[2025/07/03]** 🔥 EasyCache for Sparse-VideoGen on [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4HunyuanVideo) is released.
 - **[2025/07/02]** 🔥 EasyCache for [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4HunyuanVideo) is released.
 
 ## Abstract
