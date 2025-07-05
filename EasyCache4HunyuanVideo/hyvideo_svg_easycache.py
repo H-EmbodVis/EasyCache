@@ -1,3 +1,7 @@
+# Copyright 2025 The Tencent Hunyuan Team Authors. All rights reserved.
+# Copyright 2025 The SVG Team Authors. All rights reserve.
+# Copyright 2025 The Huazhong University of Science and Technology VLRLab Authors. All rights reserved.
+
 import os
 import time
 import math
@@ -262,6 +266,7 @@ def main():
     save_path = args.output_path
     if args.pattern == "SVG":
         masks = ["spatial", "temporal"]
+
         def get_attention_mask(mask_name):
 
             context_length = 256

@@ -1,3 +1,6 @@
+# Copyright 2025 The Tecent Hunyuan Team Authors. All rights reserved.
+# Copyright 2025 The Huazhong University of Science and Technology VLRLab Authors. All rights reserved.
+
 import os
 import time
 from pathlib import Path
