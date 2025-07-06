@@ -69,9 +69,9 @@ Tested on Vbench prompts with NVIDIA A800.
 | Method | Latency (s)↓ | Speedup ↑ | PSNR ↑ | SSIM ↑ | LPIPS ↓ |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | Wan2.1 (Baseline) | 175.35 | 1.00x | - | - | - |
-| PAB | 102.03 | 1.72x | 22.57 | 0.6484 | 0.3010 |
-| TeaCache | 87.77 | 2.00x | 25.24 | 0.8057 | 0.1277 |
-| **EasyCache (Ours)** | **69.11** | **2.54x** | **24.74** | **0.8337** | **0.0952** |
+| PAB | 102.03 | 1.72x | 18.84 | 0.6484 | 0.3010 |
+| TeaCache | 87.77 | 2.00x | 22.57 | 0.8057 | 0.1277 |
+| **EasyCache (Ours)** | **69.11** | **2.54x** | **25.24** | **0.8337** | **0.0952** |
 
 **Performance on HunyuanVideo:**
 | Method | Latency (s)↓ | Speedup ↑ | PSNR ↑ | SSIM ↑ | LPIPS ↓ |
@@ -92,6 +92,7 @@ EasyCache is orthogonal to other acceleration techniques, such as the efficient 
 |:---:|:---:|:---:|:---:|
 | Baseline | 6594s | 1.00x | - |
 | SVG | 3474s | 1.90x | 27.56 |
+| SVG (w/ TeaCache) | 2071s | 3.18x | 22.65 |
 | SVG (w/ **Ours**) | **1981s** | **3.33x** | **27.26** |
 
 
