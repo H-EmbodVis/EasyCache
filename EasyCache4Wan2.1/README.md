@@ -30,10 +30,16 @@ EasyCache significantly accelerates inference speed while maintaining high visua
 
 | Wan2.1-14B (Baseline, 720p, H20) | EasyCache (Ours, 720p, H20) |
 | :---: | :---: |
-| ![Baseline Video](./videos/gt_14b_720p.gif) | ![Our Video](./videos/easycache_14b_720p.gif) |
+| ![Baseline Video](./videos/t2v_gt_14b_720p.gif) | ![Our Video](./videos/t2v_easycache_14b_720p.gif) |
 | **Inference Time: ~6862s** | **Inference Time: ~2884s (~2.4x Speedup)** |
 
 
+**Prompt: "A cute green alien child with large ears, wearing a brown robe, sits on a chair and eats a blue cookie at a table, with crumbs scattered on the robe, in a cozy indoor setting."**
+
+| Wan2.1-14B I2V (Baseline, 720p, H20) | EasyCache (Ours, 720p, H20) |
+| :---: | :---: |
+| ![Baseline Video](./videos/i2v_gt_14b_720p.gif) | ![Our Video](./videos/i2v_easycache_14b_720p.gif) |
+| **Inference Time: ~5302s** | **Inference Time: ~2397s (~2.2x Speedup)** |
 
 ---
 
@@ -59,6 +65,18 @@ python easycache_generate.py \
 	--size "1280*720" \
 	--ckpt_dir ./Wan2.1-T2V-14B \
 	--prompt "A stylish woman walks down a Tokyo street filled with warm glowing neon and animated city signage. She wears a black leather jacket, a long red dress, and black boots, and carries a black purse. She wears sunglasses and red lipstick. She walks confidently and casually. The street is damp and reflective, creating a mirror effect of the colorful lights. Many pedestrians walk about." \
+	--base_seed 0
+```
+#### **2. EasyCache Acceleration for Wan2.1 I2V**
+Execute the following command from the root of the `Wan2.1` project to generate a video. To generate videos in 480p resolution, set the `--size` argument to `832*480` and set `--ckpt_dir` as `./Wan2.1-I2V-14B-480P`. You can also specify your own custom prompts and images.
+
+```bash
+python easycache_generate.py \
+	--task i2v-14B \
+	--size "1280*720" \
+	--ckpt_dir ./Wan2.1-I2V-14B-720P \
+	--image examples/grogu.png \
+	--prompt "A cute green alien child with large ears, wearing a brown robe, sits on a chair and eats a blue cookie at a table, with crumbs scattered on the robe, in a cozy indoor setting." \
 	--base_seed 0
 ```
 

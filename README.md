@@ -46,6 +46,7 @@ https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
 
 ## 📰 News
 - **If you like our project, please give us a star ⭐ on GitHub for the latest update.**
+- **[2025/07/06]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) I2V is released.
 - **[2025/07/05]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) T2V is released.
 - **[2025/07/04]** 🎉 Release the [**paper**](https://arxiv.org/abs/2507.02860) of EasyCache.
 - **[2025/07/03]** 🔥 EasyCache for Sparse-VideoGen on [**HunyuanVideo**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4HunyuanVideo) is released.
@@ -108,7 +109,7 @@ For complete instructions, please refer to the [README](./EasyCache4HunyuanVideo
 - [x] Support HunyuanVideo
 - [x] Support Sparse-VideoGen on HunyuanVideo
 - [x] Support Wan2.1 T2V
-- [ ] Support Wan2.1 I2V
+- [x] Support Wan2.1 I2V
 - [ ] Support FLUX
 
 ## 🌹 Acknowledgements
