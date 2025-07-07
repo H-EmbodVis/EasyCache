@@ -25,17 +25,16 @@ Video synchronization issues may occur due to network load, for improved visuali
 **Prompt: "Grassland at dusk, wild horses galloping, golden light flickering across manes."**
 *(HunyuanVideo)*
 
-| Baseline | Ours (2.3x) | TeaCache (1.7x) | PAB (1.2x) |
+| Baseline | Ours (2.28x) | TeaCache (1.68x) | PAB (1.19x) |
 | :---: | :---: | :---: | :---: |
 | ![Baseline Video](./demo/gt/6.gif) | ![Our Video](./demo/our/6.gif) | ![TeaCache Video](./demo/teacache/6.gif) | ![PAB Video](./demo/pab/6.gif) |
 
 **Prompt: "A top-down view of a barista creating latte art, skillfully pouring milk to form the letters 'TPAMI' on coffee."**
 *(Wan2.1-14B)*
 
-| Baseline | Ours (2.34x) | TeaCache (1.46x) | PAB (1.87x) |
+| Baseline | Ours (2.63x) | TeaCache (1.46x) | PAB (2.10x) |
 | :---: | :---: | :---: | :---: |
 | ![Baseline Latte](./demo/gt/7.gif) | ![Our Latte](./demo/our/7.gif) | ![TeaCache Latte](./demo/teacache/7.gif) | ![PAB Latte](./demo/pab/7.gif) |
-
 
 **Compatibility with SVG**
 
@@ -64,15 +63,6 @@ We validated the performance of EasyCache on leading video generation models and
 
 Tested on Vbench prompts with NVIDIA A800.
 
-**Performance on Wan2.1-1.3B:**
-
-| Method | Latency (s)↓ | Speedup ↑ | PSNR ↑ | SSIM ↑ | LPIPS ↓ |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| Wan2.1 (Baseline) | 175.35 | 1.00x | - | - | - |
-| PAB | 102.03 | 1.72x | 18.84 | 0.6484 | 0.3010 |
-| TeaCache | 87.77 | 2.00x | 22.57 | 0.8057 | 0.1277 |
-| **EasyCache (Ours)** | **69.11** | **2.54x** | **25.24** | **0.8337** | **0.0952** |
-
 **Performance on HunyuanVideo:**
 | Method | Latency (s)↓ | Speedup ↑ | PSNR ↑ | SSIM ↑ | LPIPS ↓ |
 |:---:|:---:|:---:|:---:|:---:|:---:|
@@ -81,6 +71,15 @@ Tested on Vbench prompts with NVIDIA A800.
 | TeaCache | 674.04 | 1.67x | 23.85 | 0.8185 | 0.1730 |
 | SVG | 802.70 | 1.40x | 26.57 | 0.8596 | 0.1368 |
 | **EasyCache (Ours)** | **507.97** | **2.21x** | **32.66** | **0.9313** | **0.0533** |
+
+**Performance on Wan2.1-1.3B:**
+
+| Method | Latency (s)↓ | Speedup ↑ | PSNR ↑ | SSIM ↑ | LPIPS ↓ |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| Wan2.1 (Baseline) | 175.35 | 1.00x | - | - | - |
+| PAB | 102.03 | 1.72x | 18.84 | 0.6484 | 0.3010 |
+| TeaCache | 87.77 | 2.00x | 22.57 | 0.8057 | 0.1277 |
+| **EasyCache (Ours)** | **69.11** | **2.54x** | **25.24** | **0.8337** | **0.0952** |
 
 ### Compatibility with Other Acceleration Techniques
 
@@ -103,7 +102,13 @@ Detailed instructions for each supported model are provided in their respective 
 1. **Prerequisites**: Set up the environment and download weights from the official HunyuanVideo repository.
 2. **Copy Files**: Place the EasyCache script files into your local HunyuanVideo project directory.
 3. **Run**: Execute the provided Python script to run inference with acceleration.
-For complete instructions, please refer to the [README](./EasyCache4HunyuanVideo/README.md).
+**For complete instructions, please refer to the [README](./EasyCache4HunyuanVideo/README.md).**
+
+### Wan2.1
+1. **Prerequisites**: Set up the environment and download weights from the official Wan2.1 repository.
+2. **Copy Files**: Place the EasyCache script files into your local Wan2.1 project directory.
+3. **Run**: Execute the provided Python script to run inference with acceleration.
+**For complete instructions, please refer to the [README](./EasyCache4Wan2.1/README.md).**
 
 ## 🎯 To Do
 
