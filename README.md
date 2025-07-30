@@ -45,7 +45,7 @@ https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
 
 ## 📰 News
 - **If you like our project, please give us a star ⭐ on GitHub for the latest update.**
-- **[2025/07/06]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) TI2V-5B is released. Thanks [@AChowdhury1211](https://github.com/AChowdhury1211).
+- **[2025/07/30]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) TI2V-5B is released. Thanks [@AChowdhury1211](https://github.com/AChowdhury1211).
 - **[2025/07/06]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) I2V is released.
 - **[2025/07/05]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) T2V is released.
 - **[2025/07/04]** 🎉 Release the [**paper**](https://arxiv.org/abs/2507.02860) of EasyCache.
