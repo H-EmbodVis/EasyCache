@@ -45,6 +45,7 @@ https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
 
 ## 📰 News
 - **If you like our project, please give us a star ⭐ on GitHub for the latest update.**
+- **[2025/07/06]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) TI2V-5B is released. Thanks [@AChowdhury1211](https://github.com/AChowdhury1211).
 - **[2025/07/06]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) I2V is released.
 - **[2025/07/05]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) T2V is released.
 - **[2025/07/04]** 🎉 Release the [**paper**](https://arxiv.org/abs/2507.02860) of EasyCache.
@@ -116,11 +117,13 @@ Detailed instructions for each supported model are provided in their respective 
 - [x] Support Sparse-VideoGen on HunyuanVideo
 - [x] Support Wan2.1 T2V
 - [x] Support Wan2.1 I2V
-- [ ] Support FLUX
+- [x] Support Wan2.2 TI2V
+- [ ] Support Wan2.2 T2V
+- [ ] Support Wan2.2 I2V
 
 ## 🌹 Acknowledgements
-We would like to thank the contributors to the [Wan2.1](https://github.com/Wan-Video/Wan2.1), [HunyuanVideo](https://github.com/Tencent-Hunyuan/HunyuanVideo), [OpenSora](https://github.com/hpcaitech/Open-Sora), and [SVG](https://github.com/svg-project/Sparse-VideoGen) repositories, for their open research and exploration.
-- [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) supports EasyCache4Wan2.1. Thanks [@kijai](https://github.com/kijai).
+We would like to thank the contributors to the [Wan2.1](https://github.com/Wan-Video/Wan2.1), [HunyuanVideo](https://github.com/Tencent-Hunyuan/HunyuanVideo), [Wan2.2](https://github.com/Wan-Video/Wan2.2), [OpenSora](https://github.com/hpcaitech/Open-Sora), and [SVG](https://github.com/svg-project/Sparse-VideoGen) repositories, for their open research and exploration.
+- [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) supports EasyCache4Wan2.1/EasyCache4Wan2.2. Thanks [@kijai](https://github.com/kijai).
 
 ## 📖 Citation
 

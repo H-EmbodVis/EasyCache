@@ -51,464 +51,38 @@ EXAMPLE_PROMPT = {
     },
 }
 
+
 def _prepare_model_for_timestep(self, t, boundary, offload_model):
-        r"""
-        Prepares and returns the required model for the current timestep.
-
-        Args:
-            t (torch.Tensor):
-                current timestep.
-            boundary (`int`):
-                The timestep threshold. If `t` is at or above this value,
-                the `high_noise_model` is considered as the required model.
-            offload_model (`bool`):
-                A flag intended to control the offloading behavior.
-
-        Returns:
-            torch.nn.Module:
-                The active model on the target device for the current timestep.
-        """
-        if t.item() >= boundary:
-            required_model_name = 'high_noise_model'
-            offload_model_name = 'low_noise_model'
-        else:
-            required_model_name = 'low_noise_model'
-            offload_model_name = 'high_noise_model'
-        if offload_model or self.init_on_cpu:
-            if next(getattr(
-                    self,
-                    offload_model_name).parameters()).device.type == 'cuda':
-                getattr(self, offload_model_name).to('cpu')
-            if next(getattr(
-                    self,
-                    required_model_name).parameters()).device.type == 'cpu':
-                getattr(self, required_model_name).to(self.device)
-        return getattr(self, required_model_name)
-
-def t2v_generate(self,
-                 input_prompt,
-                 size=(1280, 720),
-                 frame_num=81,
-                 shift=5.0,
-                 sample_solver='unipc',
-                 sampling_steps=50,
-                 guide_scale=5.0,
-                 n_prompt="",
-                 seed=-1,
-                 offload_model=True):
     r"""
-    Generates video frames from text prompt using diffusion process.
-
+    Prepares and returns the required model for the current timestep.
     Args:
-        input_prompt (`str`):
-            Text prompt for content generation
-        size (tupele[`int`], *optional*, defaults to (1280,720)):
-            Controls video resolution, (width,height).
-        frame_num (`int`, *optional*, defaults to 81):
-            How many frames to sample from a video. The number should be 4n+1
-        shift (`float`, *optional*, defaults to 5.0):
-            Noise schedule shift parameter. Affects temporal dynamics
-        sample_solver (`str`, *optional*, defaults to 'unipc'):
-            Solver used to sample the video.
-        sampling_steps (`int`, *optional*, defaults to 40):
-            Number of diffusion sampling steps. Higher values improve quality but slow generation
-        guide_scale (`float`, *optional*, defaults 5.0):
-            Classifier-free guidance scale. Controls prompt adherence vs. creativity
-        n_prompt (`str`, *optional*, defaults to ""):
-            Negative prompt for content exclusion. If not given, use `config.sample_neg_prompt`
-        seed (`int`, *optional*, defaults to -1):
-            Random seed for noise generation. If -1, use random seed.
-        offload_model (`bool`, *optional*, defaults to True):
-            If True, offloads models to CPU during generation to save VRAM
-
+        t (torch.Tensor):
+            current timestep.
+        boundary (`int`):
+            The timestep threshold. If `t` is at or above this value,
+            the `high_noise_model` is considered as the required model.
+        offload_model (`bool`):
+            A flag intended to control the offloading behavior.
     Returns:
-        torch.Tensor:
-            Generated video frames tensor. Dimensions: (C, N H, W) where:
-            - C: Color channels (3 for RGB)
-            - N: Number of frames (81)
-            - H: Frame height (from size)
-            - W: Frame width from size)
+        torch.nn.Module:
+            The active model on the target device for the current timestep.
     """
-    # preprocess
-    guide_scale = (guide_scale, guide_scale) if isinstance(
-            guide_scale, float) else guide_scale
-    F = frame_num
-    target_shape = (self.vae.model.z_dim, (F - 1) // self.vae_stride[0] + 1,
-                    size[1] // self.vae_stride[1],
-                    size[0] // self.vae_stride[2])
-
-    seq_len = math.ceil((target_shape[2] * target_shape[3]) /
-                        (self.patch_size[1] * self.patch_size[2]) *
-                        target_shape[1] / self.sp_size) * self.sp_size
-
-    if n_prompt == "":
-        n_prompt = self.sample_neg_prompt
-    seed = seed if seed >= 0 else random.randint(0, sys.maxsize)
-    seed_g = torch.Generator(device=self.device)
-    seed_g.manual_seed(seed)
-
-    if not self.t5_cpu:
-        self.text_encoder.model.to(self.device)
-        context = self.text_encoder([input_prompt], self.device)
-        context_null = self.text_encoder([n_prompt], self.device)
-        if offload_model:
-            self.text_encoder.model.cpu()
+    if t.item() >= boundary:
+        required_model_name = 'high_noise_model'
+        offload_model_name = 'low_noise_model'
     else:
-        context = self.text_encoder([input_prompt], torch.device('cpu'))
-        context_null = self.text_encoder([n_prompt], torch.device('cpu'))
-        context = [t.to(self.device) for t in context]
-        context_null = [t.to(self.device) for t in context_null]
-
-    noise = [
-        torch.randn(
-            target_shape[0],
-            target_shape[1],
-            target_shape[2],
-            target_shape[3],
-            dtype=torch.float32,
-            device=self.device,
-            generator=seed_g)
-    ]
-
-    @contextmanager
-    def noop_no_sync():
-        yield
-
-    no_sync_low_noise = getattr(self.low_noise_model, 'no_sync',
-                                    noop_no_sync)
-    no_sync_high_noise = getattr(self.high_noise_model, 'no_sync',
-                                     noop_no_sync)
-
-    # evaluation mode
-    with (
-        torch.amp.autocast('cuda', dtype=self.param_dtype),
-        torch.no_grad(),
-        no_sync_low_noise(),
-        no_sync_high_noise(),
-    ):
-        boundary = self.boundary * self.num_train_timesteps
-        
-        if sample_solver == 'unipc':
-            sample_scheduler = FlowUniPCMultistepScheduler(
-                num_train_timesteps=self.num_train_timesteps,
-                shift=1,
-                use_dynamic_shifting=False)
-            sample_scheduler.set_timesteps(
-                sampling_steps, device=self.device, shift=shift)
-            timesteps = sample_scheduler.timesteps
-        elif sample_solver == 'dpm++':
-            sample_scheduler = FlowDPMSolverMultistepScheduler(
-                num_train_timesteps=self.num_train_timesteps,
-                shift=1,
-                use_dynamic_shifting=False)
-            sampling_sigmas = get_sampling_sigmas(sampling_steps, shift)
-            timesteps, _ = retrieve_timesteps(
-                sample_scheduler,
-                device=self.device,
-                sigmas=sampling_sigmas)
-        else:
-            raise NotImplementedError("Unsupported solver.")
-
-        # sample videos
-        latents = noise
-
-        arg_c = {'context': context, 'seq_len': seq_len}
-        arg_null = {'context': context_null, 'seq_len': seq_len}
-
-        for _, t in enumerate(tqdm(timesteps)):
-            torch.cuda.synchronize()
-            start_time = time()
-            latent_model_input = latents
-            timestep = [t]
-
-            timestep = torch.stack(timestep)
-
-            self.model.to(self.device)
-            
-            model = self._prepare_model_for_timestep(
-                    t, boundary, offload_model)
-            sample_guide_scale = guide_scale[1] if t.item(
-                ) >= boundary else guide_scale[0]
-            
-            noise_pred_cond = model(
-                latent_model_input, t=timestep, **arg_c)[0]
-            noise_pred_uncond = model(
-                latent_model_input, t=timestep, **arg_null)[0]
-
-            noise_pred = noise_pred_uncond + guide_scale * (
-                    noise_pred_cond - noise_pred_uncond)
-
-            torch.cuda.synchronize()
-            self.cost_time += (time() - start_time)
-
-            temp_x0 = sample_scheduler.step(
-                noise_pred.unsqueeze(0),
-                t,
-                latents[0].unsqueeze(0),
-                return_dict=False,
-                generator=seed_g)[0]
-            latents = [temp_x0.squeeze(0)]
-
-        x0 = latents
-        if offload_model:
-            self.low_noise_model.cpu()
-            self.high_noise_model.cpu()
-            torch.cuda.empty_cache()
-        if self.rank == 0:
-            videos = self.vae.decode(x0)
-
-    del noise, latents
-    del sample_scheduler
-    if offload_model:
-        gc.collect()
-        torch.cuda.synchronize()
-    if dist.is_initialized():
-        dist.barrier()
-
-    return videos[0] if self.rank == 0 else None
-
-
-def i2v_generate(self,
-                 input_prompt,
-                 img,
-                 max_area=720 * 1280,
-                 frame_num=81,
-                 shift=5.0,
-                 sample_solver='unipc',
-                 sampling_steps=40,
-                 guide_scale=5.0,
-                 n_prompt="",
-                 seed=-1,
-                 offload_model=True):
-    r"""
-    Generates video frames from input image and text prompt using diffusion process.
-
-    Args:
-        input_prompt (`str`):
-            Text prompt for content generation.
-        img (PIL.Image.Image):
-            Input image tensor. Shape: [3, H, W]
-        max_area (`int`, *optional*, defaults to 720*1280):
-            Maximum pixel area for latent space calculation. Controls video resolution scaling
-        frame_num (`int`, *optional*, defaults to 81):
-            How many frames to sample from a video. The number should be 4n+1
-        shift (`float`, *optional*, defaults to 5.0):
-            Noise schedule shift parameter. Affects temporal dynamics
-            [NOTE]: If you want to generate a 480p video, it is recommended to set the shift value to 3.0.
-        sample_solver (`str`, *optional*, defaults to 'unipc'):
-            Solver used to sample the video.
-        sampling_steps (`int`, *optional*, defaults to 40):
-            Number of diffusion sampling steps. Higher values improve quality but slow generation
-        guide_scale (`float`, *optional*, defaults 5.0):
-            Classifier-free guidance scale. Controls prompt adherence vs. creativity
-        n_prompt (`str`, *optional*, defaults to ""):
-            Negative prompt for content exclusion. If not given, use `config.sample_neg_prompt`
-        seed (`int`, *optional*, defaults to -1):
-            Random seed for noise generation. If -1, use random seed
-        offload_model (`bool`, *optional*, defaults to True):
-            If True, offloads models to CPU during generation to save VRAM
-
-    Returns:
-        torch.Tensor:
-            Generated video frames tensor. Dimensions: (C, N H, W) where:
-            - C: Color channels (3 for RGB)
-            - N: Number of frames (81)
-            - H: Frame height (from max_area)
-            - W: Frame width from max_area)
-    """
-    guide_scale = (guide_scale, guide_scale) if isinstance(
-            guide_scale, float) else guide_scale
-    img = TF.to_tensor(img).sub_(0.5).div_(0.5).to(self.device)
-
-    F = frame_num
-    h, w = img.shape[1:]
-    aspect_ratio = h / w
-    lat_h = round(
-        np.sqrt(max_area * aspect_ratio) // self.vae_stride[1] //
-        self.patch_size[1] * self.patch_size[1])
-    lat_w = round(
-        np.sqrt(max_area / aspect_ratio) // self.vae_stride[2] //
-        self.patch_size[2] * self.patch_size[2])
-    h = lat_h * self.vae_stride[1]
-    w = lat_w * self.vae_stride[2]
-
-    max_seq_len = ((F - 1) // self.vae_stride[0] + 1) * lat_h * lat_w // (
-            self.patch_size[1] * self.patch_size[2])
-    max_seq_len = int(math.ceil(max_seq_len / self.sp_size)) * self.sp_size
-
-    seed = seed if seed >= 0 else random.randint(0, sys.maxsize)
-    seed_g = torch.Generator(device=self.device)
-    seed_g.manual_seed(seed)
-    noise = torch.randn(
-        self.vae.model.z_dim,
-        (F - 1) // self.vae_stride[0] + 1,
-        lat_h,
-        lat_w,
-        dtype=torch.float32,
-        generator=seed_g,
-        device=self.device)
-
-    msk = torch.ones(1, F, lat_h, lat_w, device=self.device)
-    msk[:, 1:] = 0
-    msk = torch.concat([
-        torch.repeat_interleave(msk[:, 0:1], repeats=4, dim=1), msk[:, 1:]
-    ],
-        dim=1)
-    msk = msk.view(1, msk.shape[1] // 4, 4, lat_h, lat_w)
-    msk = msk.transpose(1, 2)[0]
-
-    if n_prompt == "":
-        n_prompt = self.sample_neg_prompt
-
-    # preprocess
-    if not self.t5_cpu:
-        self.text_encoder.model.to(self.device)
-        context = self.text_encoder([input_prompt], self.device)
-        context_null = self.text_encoder([n_prompt], self.device)
-        if offload_model:
-            self.text_encoder.model.cpu()
-    else:
-        context = self.text_encoder([input_prompt], torch.device('cpu'))
-        context_null = self.text_encoder([n_prompt], torch.device('cpu'))
-        context = [t.to(self.device) for t in context]
-        context_null = [t.to(self.device) for t in context_null]
-
-    self.clip.model.to(self.device)
-    clip_context = self.clip.visual([img[:, None, :, :]])
-    if offload_model:
-        self.clip.model.cpu()
-
-    y = self.vae.encode([
-        torch.concat([
-            torch.nn.functional.interpolate(
-                img[None].cpu(), size=(h, w), mode='bicubic').transpose(
-                0, 1),
-            torch.zeros(3, F - 1, h, w)
-        ],
-            dim=1).to(self.device)
-    ])[0]
-    y = torch.concat([msk, y])
-
-    @contextmanager
-    def noop_no_sync():
-        yield
-
-    no_sync_low_noise = getattr(self.low_noise_model, 'no_sync',
-                                noop_no_sync)
-    no_sync_high_noise = getattr(self.high_noise_model, 'no_sync',
-                                    noop_no_sync)
-
-    # evaluation mode
-    with (
-            torch.amp.autocast('cuda', dtype=self.param_dtype),
-            torch.no_grad(),
-            no_sync_low_noise(),
-            no_sync_high_noise(),
-    ):
-        boundary = self.boundary * self.num_train_timesteps
-        
-        if sample_solver == 'unipc':
-            sample_scheduler = FlowUniPCMultistepScheduler(
-                num_train_timesteps=self.num_train_timesteps,
-                shift=1,
-                use_dynamic_shifting=False)
-            sample_scheduler.set_timesteps(
-                sampling_steps, device=self.device, shift=shift)
-            timesteps = sample_scheduler.timesteps
-        elif sample_solver == 'dpm++':
-            sample_scheduler = FlowDPMSolverMultistepScheduler(
-                num_train_timesteps=self.num_train_timesteps,
-                shift=1,
-                use_dynamic_shifting=False)
-            sampling_sigmas = get_sampling_sigmas(sampling_steps, shift)
-            timesteps, _ = retrieve_timesteps(
-                sample_scheduler,
-                device=self.device,
-                sigmas=sampling_sigmas)
-        else:
-            raise NotImplementedError("Unsupported solver.")
-
-        # sample videos
-        latent = noise
-
-        arg_c = {
-            'context': [context[0]],
-            'clip_fea': clip_context,
-            'seq_len': max_seq_len,
-            'y': [y],
-            # 'cond_flag': True,
-        }
-
-        arg_null = {
-            'context': context_null,
-            'clip_fea': clip_context,
-            'seq_len': max_seq_len,
-            'y': [y],
-            # 'cond_flag': False,
-        }
-
-        if offload_model:
-            torch.cuda.empty_cache()
-
-        self.model.to(self.device)
-        for _, t in enumerate(tqdm(timesteps)):
-            torch.cuda.synchronize()
-            start_time = time()
-            latent_model_input = [latent.to(self.device)]
-            timestep = [t]
-
-            timestep = torch.stack(timestep).to(self.device)
-
-            model = self._prepare_model_for_timestep(
-                t, boundary, offload_model)
-            sample_guide_scale = guide_scale[1] if t.item(
-            ) >= boundary else guide_scale[0]
-            
-            noise_pred_cond = model(
-                latent_model_input, t=timestep, **arg_c)[0]
-            if offload_model:
-                torch.cuda.empty_cache()
-            noise_pred_uncond = model(
-                latent_model_input, t=timestep, **arg_null)[0]
-            if offload_model:
-                torch.cuda.empty_cache()
-            noise_pred = noise_pred_uncond + sample_guide_scale * (
-                noise_pred_cond - noise_pred_uncond)
-
-            latent = latent.to(
-                torch.device('cpu') if offload_model else self.device)
-
-            torch.cuda.synchronize()
-            self.cost_time += (time() - start_time)
-
-            temp_x0 = sample_scheduler.step(
-                noise_pred.unsqueeze(0),
-                t,
-                latent.unsqueeze(0),
-                return_dict=False,
-                generator=seed_g)[0]
-            latent = temp_x0.squeeze(0)
-
-            x0 = [latent.to(self.device)]
-            del latent_model_input, timestep
-
-        if offload_model:
-            self.low_noise_model.cpu()
-            self.high_noise_model.cpu()
-            torch.cuda.empty_cache()
-
-        if self.rank == 0:
-            videos = self.vae.decode(x0)
-
-    del noise, latent
-    del sample_scheduler
-    if offload_model:
-        gc.collect()
-        torch.cuda.synchronize()
-    if dist.is_initialized():
-        dist.barrier()
-
-    return videos[0] if self.rank == 0 else None
+        required_model_name = 'low_noise_model'
+        offload_model_name = 'high_noise_model'
+    if offload_model or self.init_on_cpu:
+        if next(getattr(
+                self,
+                offload_model_name).parameters()).device.type == 'cuda':
+            getattr(self, offload_model_name).to('cpu')
+        if next(getattr(
+                self,
+                required_model_name).parameters()).device.type == 'cpu':
+            getattr(self, required_model_name).to(self.device)
+    return getattr(self, required_model_name)
 
 def easycache_forward(
         self,
@@ -527,7 +101,6 @@ def easycache_forward(
         seq_len (int): Maximum sequence length for positional encoding
         clip_fea (Tensor, optional): CLIP image features for image-to-video mode
         y (List[Tensor], optional): Conditional video inputs for image-to-video mode
-
     Returns:
         List[Tensor]: List of denoised video tensors with original input shapes
     """
@@ -551,7 +124,13 @@ def easycache_forward(
     # Only make decision on even (condition) steps
     if self.is_even:
         # Always compute first ret_steps and last steps
-        if self.cnt < self.ret_steps or self.cnt >= self.cutoff_steps:
+        if self.cnt < self.ret_steps or self.cnt >= (
+                ((getattr(self, "low_start_step", None) is not None and getattr(self, "is_high_noise", False)) and (
+                        self.low_start_step - 1) * 2 - 2) or
+                ((getattr(self, "low_start_step", None) is not None and not getattr(self, "is_high_noise", False)) and (
+                        self.num_steps - self.low_start_step) * 2 - 2) or
+                (self.num_steps * 2 - 2)
+        ):
             self.should_calc_current_pair = True
             self.accumulated_error_even = 0
         else:
@@ -596,21 +175,12 @@ def easycache_forward(
             hasattr(self, 'previous_raw_output_even') and self.previous_raw_output_even is not None:
         # Use cached output directly
         self.cnt += 1
-        # Check if we've reached the end of sampling
-        if self.cnt >= self.num_steps:
-            self.cnt = 0
-
         return [(u + v).float() for u, v in zip(raw_input, self.cache_even)]
 
     elif not self.is_even and not self.should_calc_current_pair and \
             hasattr(self, 'previous_raw_output_odd') and self.previous_raw_output_odd is not None:
         # Use cached output directly
         self.cnt += 1
-
-        # Check if we've reached the end of sampling
-        if self.cnt >= self.num_steps:
-            self.cnt = 0
-
         # return [u.float() for u in self.previous_raw_output_odd]
         return [(u + v).float() for u, v in zip(raw_input, self.cache_odd)]
 
@@ -703,11 +273,6 @@ def easycache_forward(
 
     # Update counter
     self.cnt += 1
-    if self.cnt >= self.num_steps:
-        self.cnt = 0
-        self.skip_cond_step = []
-        self.skip_uncond_step = []
-
     return [u.float() for u in output]
 
 
@@ -872,15 +437,30 @@ def _parse_args():
         default=0.05,
         help="Threshold for EasyCache decision making")
     parser.add_argument(
+        "--thresh_high",
+        type=float,
+        default=0.08,
+        help="Threshold for EasyCache decision making")
+    parser.add_argument(
+        "--thresh_low",
+        type=float,
+        default=0.07,
+        help="Threshold for EasyCache decision making")
+    parser.add_argument(
         "--ret_steps",
         type=int,
-        default=20,
+        default=8,
         help="Number of steps to retain in cache")
     parser.add_argument(
-        "--cutoff_steps",
+        "--ret_steps_high",
         type=int,
-        default=None,
-        help="Number of steps before cutoff for EasyCache")
+        default=10,
+        help="Number of steps to retain in cache")
+    parser.add_argument(
+        "--ret_steps_low",
+        type=int,
+        default=2,
+        help="Number of steps to retain in cache")
 
     args = parser.parse_args()
 
@@ -921,10 +501,10 @@ def generate(args):
             world_size=world_size)
     else:
         assert not (
-            args.t5_fsdp or args.dit_fsdp
+                args.t5_fsdp or args.dit_fsdp
         ), f"t5_fsdp and dit_fsdp are not supported in non-distributed environments."
         assert not (
-            args.ulysses_size > 1
+                args.ulysses_size > 1
         ), f"sequence parallel are not supported in non-distributed environments."
 
     if args.ulysses_size > 1:
@@ -988,7 +568,7 @@ def generate(args):
             dist.broadcast_object_list(input_prompt, src=0)
         args.prompt = input_prompt[0]
         logging.info(f"Extended prompt: {args.prompt}")
-        
+
     if "t2v" in args.task:
         logging.info("Creating WanT2V pipeline.")
         wan_t2v = wan.WanT2V(
@@ -1002,32 +582,41 @@ def generate(args):
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
         )
-
+        # TODO: has not been tested for MoE models
         # EasyCache setup
-        generation_time = []
-        time_cost = {"GPU_Device": torch.cuda.get_device_name(0), "number_prompt": None, "avg_cost_time": None}
-        wan_t2v.__class__.cost_time = 0
-        wan_t2v.__class__.generate = t2v_generate
-        wan_t2v.model.__class__.forward = easycache_forward
-        wan_t2v.model.__class__.cnt = 0
-        wan_t2v.model.__class__.skip_cond_step = []
-        wan_t2v.model.__class__.skip_uncond_step = []
-        wan_t2v.model.__class__.num_steps = args.sample_steps * 2
-        wan_t2v.model.__class__.thresh = args.thresh
-        wan_t2v.model.__class__.accumulated_error_even = 0
-        wan_t2v.model.__class__.should_calc_current_pair = True
-        wan_t2v.model.__class__.k = None
-
-        wan_t2v.model.__class__.previous_raw_input_even = None
-        wan_t2v.model.__class__.previous_raw_output_even = None
-        wan_t2v.model.__class__.previous_raw_output_odd = None
-        wan_t2v.model.__class__.prev_prev_raw_input_even = None
-        wan_t2v.model.__class__.cache_even = None
-        wan_t2v.model.__class__.cache_odd = None
-
-        wan_t2v.cost_time = 0
-        wan_t2v.model.__class__.ret_steps = 10 * 2
-        wan_t2v.model.__class__.cutoff_steps = args.cutoff_steps if args.cutoff_steps is not None else args.sample_steps * 2 - 2
+        wan_t2v.__class__.low_start_step = 0
+        # low_noise_model
+        wan_t2v.low_noise_model.__class__.forward = easycache_forward
+        wan_t2v.low_noise_model.__class__.cnt = 0
+        wan_t2v.low_noise_model.__class__.num_steps = args.sample_steps
+        wan_t2v.low_noise_model.__class__.thresh = args.thresh_low
+        wan_t2v.low_noise_model.__class__.accumulated_error_even = 0
+        wan_t2v.low_noise_model.__class__.should_calc_current_pair = True
+        wan_t2v.low_noise_model.__class__.k = None
+        wan_t2v.low_noise_model.__class__.previous_raw_input_even = None
+        wan_t2v.low_noise_model.__class__.previous_raw_output_even = None
+        wan_t2v.low_noise_model.__class__.previous_raw_output_odd = None
+        wan_t2v.low_noise_model.__class__.prev_prev_raw_input_even = None
+        wan_t2v.low_noise_model.__class__.cache_even = None
+        wan_t2v.low_noise_model.__class__.cache_odd = None
+        wan_t2v.low_noise_model.__class__.ret_steps = args.ret_steps_low * 2
+        wan_t2v.low_noise_model.__class__.is_high_noise = False
+        # high_noise_model
+        wan_t2v.high_noise_model.__class__.forward = easycache_forward
+        wan_t2v.high_noise_model.__class__.cnt = 0
+        wan_t2v.high_noise_model.__class__.num_steps = args.sample_steps
+        wan_t2v.high_noise_model.__class__.thresh = args.thresh_high
+        wan_t2v.high_noise_model.__class__.accumulated_error_even = 0
+        wan_t2v.high_noise_model.__class__.should_calc_current_pair = True
+        wan_t2v.high_noise_model.__class__.k = None
+        wan_t2v.high_noise_model.__class__.previous_raw_input_even = None
+        wan_t2v.high_noise_model.__class__.previous_raw_output_even = None
+        wan_t2v.high_noise_model.__class__.previous_raw_output_odd = None
+        wan_t2v.high_noise_model.__class__.prev_prev_raw_input_even = None
+        wan_t2v.high_noise_model.__class__.cache_even = None
+        wan_t2v.high_noise_model.__class__.cache_odd = None
+        wan_t2v.high_noise_model.__class__.ret_steps = args.ret_steps_high * 2
+        wan_t2v.high_noise_model.__class__.is_high_noise = True
 
         logging.info(f"Generating video ...")
         video = wan_t2v.generate(
@@ -1040,7 +629,6 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
-        generation_time.append(wan_t2v.cost_time)
 
     elif "ti2v" in args.task:
         logging.info("Creating WanTI2V pipeline.")
@@ -1055,6 +643,22 @@ def generate(args):
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
         )
+
+        wan_ti2v.model.__class__.forward = easycache_forward
+        wan_ti2v.model.__class__.cnt = 0
+        wan_ti2v.model.__class__.num_steps = args.sample_steps * 2
+        wan_ti2v.model.__class__.thresh = args.thresh
+        wan_ti2v.model.__class__.accumulated_error_even = 0
+        wan_ti2v.model.__class__.should_calc_current_pair = True
+        wan_ti2v.model.__class__.k = None
+        wan_ti2v.model.__class__.previous_raw_input_even = None
+        wan_ti2v.model.__class__.previous_raw_output_even = None
+        wan_ti2v.model.__class__.previous_raw_output_odd = None
+        wan_ti2v.model.__class__.prev_prev_raw_input_even = None
+        wan_ti2v.model.__class__.cache_even = None
+        wan_ti2v.model.__class__.cache_odd = None
+
+        wan_ti2v.model.__class__.ret_steps = args.ret_steps * 2
 
         logging.info(f"Generating video ...")
         video = wan_ti2v.generate(
@@ -1082,30 +686,40 @@ def generate(args):
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
         )
-
+        # TODO: has not been tested for MoE models
         # EasyCache setup
-        generation_time = []
-        time_cost = {"GPU_Device": torch.cuda.get_device_name(0), "number_prompt": None, "avg_cost_time": None}
-        wan_i2v.__class__.generate = i2v_generate
-        wan_i2v.model.__class__.forward = easycache_forward
-        wan_i2v.model.__class__.cnt = 0
-        wan_i2v.model.__class__.num_steps = args.sample_steps * 2
-        wan_i2v.model.__class__.thresh = args.thresh
-
-        wan_i2v.model.__class__.accumulated_error_even = 0
-        wan_i2v.model.__class__.should_calc_current_pair = True
-        wan_i2v.model.__class__.k = None
-
-        wan_i2v.model.__class__.previous_raw_input_even = None
-        wan_i2v.model.__class__.previous_raw_output_even = None
-        wan_i2v.model.__class__.previous_raw_output_odd = None
-        wan_i2v.model.__class__.prev_prev_raw_input_even = None
-        wan_i2v.model.__class__.cache_even = None
-        wan_i2v.model.__class__.cache_odd = None
-
-        wan_i2v.cost_time = 0
-        wan_i2v.model.__class__.ret_steps = 10 * 2
-        wan_i2v.model.__class__.cutoff_steps = args.cutoff_steps if args.cutoff_steps is not None else args.sample_steps * 2 - 2
+        # low_noise_model
+        wan_i2v.low_noise_model.__class__.forward = easycache_forward
+        wan_i2v.low_noise_model.__class__.cnt = 0
+        wan_i2v.low_noise_model.__class__.num_steps = args.sample_steps * 2
+        wan_i2v.low_noise_model.__class__.thresh = args.thresh
+        wan_i2v.low_noise_model.__class__.accumulated_error_even = 0
+        wan_i2v.low_noise_model.__class__.should_calc_current_pair = True
+        wan_i2v.low_noise_model.__class__.k = None
+        wan_i2v.low_noise_model.__class__.previous_raw_input_even = None
+        wan_i2v.low_noise_model.__class__.previous_raw_output_even = None
+        wan_i2v.low_noise_model.__class__.previous_raw_output_odd = None
+        wan_i2v.low_noise_model.__class__.prev_prev_raw_input_even = None
+        wan_i2v.low_noise_model.__class__.cache_even = None
+        wan_i2v.low_noise_model.__class__.cache_odd = None
+        wan_i2v.low_noise_model.__class__.ret_steps = args.ret_steps_low * 2
+        wan_i2v.low_noise_model.__class__.cutoff_steps = args.cutoff_steps if args.cutoff_steps is not None else args.sample_steps * 2 - 2
+        # high_noise_model
+        wan_i2v.high_noise_model.__class__.forward = easycache_forward
+        wan_i2v.high_noise_model.__class__.cnt = 0
+        wan_i2v.high_noise_model.__class__.num_steps = args.sample_steps * 2
+        wan_i2v.high_noise_model.__class__.thresh = args.thresh
+        wan_i2v.high_noise_model.__class__.accumulated_error_even = 0
+        wan_i2v.high_noise_model.__class__.should_calc_current_pair = True
+        wan_i2v.high_noise_model.__class__.k = None
+        wan_i2v.high_noise_model.__class__.previous_raw_input_even = None
+        wan_i2v.high_noise_model.__class__.previous_raw_output_even = None
+        wan_i2v.high_noise_model.__class__.previous_raw_output_odd = None
+        wan_i2v.high_noise_model.__class__.prev_prev_raw_input_even = None
+        wan_i2v.high_noise_model.__class__.cache_even = None
+        wan_i2v.high_noise_model.__class__.cache_odd = None
+        wan_i2v.high_noise_model.__class__.ret_steps = args.ret_steps_high * 2
+        wan_i2v.high_noise_model.__class__.cutoff_steps = args.cutoff_steps if args.cutoff_steps is not None else args.sample_steps * 2 - 2
 
         logging.info("Generating video ...")
         video = wan_i2v.generate(
@@ -1119,7 +733,6 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
-        generation_time.append(wan_i2v.cost_time)
 
     if rank == 0:
         if args.save_file is None:
@@ -1127,7 +740,7 @@ def generate(args):
             formatted_prompt = args.prompt.replace(" ", "_").replace("/",
                                                                      "_")[:50]
             suffix = '.mp4'
-            args.save_file = f"{args.task}_{args.size.replace('*','x') if sys.platform=='win32' else args.size}_{args.ulysses_size}_{formatted_prompt}_{formatted_time}" + suffix
+            args.save_file = f"{args.task}_{args.size.replace('*', 'x') if sys.platform == 'win32' else args.size}_{args.ulysses_size}_{formatted_prompt}_{formatted_time}" + suffix
 
         logging.info(f"Saving generated video to {args.save_file}")
         save_video(
@@ -1145,12 +758,7 @@ def generate(args):
         dist.destroy_process_group()
 
     logging.info("Finished.")
-    
-    time_cost["number_prompt"] = len(generation_time)
-    time_cost["avg_cost_time"] = sum(generation_time) / (len(generation_time)) if len(generation_time) > 0 else 0
 
-    print(
-        f"GPU_Device:{time_cost['GPU_Device']}, number_prompt: {time_cost['number_prompt']}, avg_cost_time: {time_cost['avg_cost_time']}")
 
 if __name__ == "__main__":
     args = _parse_args()
