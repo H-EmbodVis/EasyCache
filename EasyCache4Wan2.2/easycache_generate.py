@@ -215,6 +215,9 @@ def t2v_generate(self,
         self.low_start_step = np.where(timesteps.cpu().numpy() < boundary)[0][0]
 
         for _, t in enumerate(tqdm(timesteps)):
+            torch.cuda.synchronize()
+            start_time = time()
+            
             latent_model_input = latents
             timestep = [t]
 
@@ -233,6 +236,9 @@ def t2v_generate(self,
 
             noise_pred = noise_pred_uncond + sample_guide_scale * (
                     noise_pred_cond - noise_pred_uncond)
+            
+            torch.cuda.synchronize()
+            self.cost_time += (time() - start_time)
 
             temp_x0 = sample_scheduler.step(
                 noise_pred.unsqueeze(0),
@@ -441,8 +447,12 @@ def i2v_generate(self,
         if offload_model:
             torch.cuda.empty_cache()
 
-        self.model.to(self.device)
+        self.low_noise_model.to(self.device)
+        self.high_noise_model.to(self.device)
         for _, t in enumerate(tqdm(timesteps)):
+            torch.cuda.synchronize()
+            start_time = time()
+            
             latent_model_input = [latent.to(self.device)]
             timestep = [t]
 
@@ -467,6 +477,9 @@ def i2v_generate(self,
             latent = latent.to(
                 torch.device('cpu') if offload_model else self.device)
 
+            torch.cuda.synchronize()
+            self.cost_time += (time() - start_time)
+            
             temp_x0 = sample_scheduler.step(
                 noise_pred.unsqueeze(0),
                 t,
@@ -495,7 +508,6 @@ def i2v_generate(self,
         dist.barrier()
 
     return videos[0] if self.rank == 0 else None
-
 
 def easycache_forward(
         self,
@@ -1014,7 +1026,12 @@ def _parse_args():
         "--thresh_t2v",
         type=float,
         default=0.06,
-        help="Threshold for EasyCache decision making")
+        help="Threshold for EasyCache decision making for Text to Video.")
+    parser.add_argument(
+        "--thresh_i2v",
+        type=float,
+        default=0.06,
+        help="Threshold for EasyCache decision making for Image to Video.")
     parser.add_argument(
         "--ret_steps",
         type=int,
@@ -1163,6 +1180,7 @@ def generate(args):
         )
 
         # EasyCache setup
+        wan_t2v.__class__.generate = t2v_generate
         wan_t2v.low_noise_model.__class__.forward = easycache_forward_
         wan_t2v.high_noise_model.__class__.forward = easycache_forward_
 
@@ -1222,6 +1240,26 @@ def generate(args):
             seed=args.base_seed,
             offload_model=args.offload_model)
     else:
+        global GLOBAL_CNT, GLOBAL_NUM_STEPS, GLOBAL_THRESH, GLOBAL_ACCUMULATED_ERROR_EVEN
+        global GLOBAL_SHOULD_CALC_CURRENT_PAIR, GLOBAL_K, GLOBAL_PREVIOUS_RAW_INPUT_EVEN
+        global GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN, GLOBAL_PREVIOUS_RAW_OUTPUT_ODD
+        global GLOBAL_PREV_PREV_RAW_INPUT_EVEN, GLOBAL_CACHE_EVEN, GLOBAL_CACHE_ODD
+        global GLOBAL_RET_STEPS
+
+        GLOBAL_CNT = 0
+        GLOBAL_NUM_STEPS = args.sample_steps * 2
+        GLOBAL_THRESH = args.thresh_i2v
+        GLOBAL_ACCUMULATED_ERROR_EVEN = 0
+        GLOBAL_SHOULD_CALC_CURRENT_PAIR = True
+        GLOBAL_K = None
+        GLOBAL_PREVIOUS_RAW_INPUT_EVEN = None
+        GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN = None
+        GLOBAL_PREVIOUS_RAW_OUTPUT_ODD = None
+        GLOBAL_PREV_PREV_RAW_INPUT_EVEN = None
+        GLOBAL_CACHE_EVEN = None
+        GLOBAL_CACHE_ODD = None
+        GLOBAL_RET_STEPS = args.ret_steps * 2
+        
         logging.info("Creating WanI2V pipeline.")
         wan_i2v = wan.WanI2V(
             config=cfg,
@@ -1234,6 +1272,11 @@ def generate(args):
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
         )
+        
+        # EasyCache setup
+        wan_i2v.__class__.generate = i2v_generate
+        wan_i2v.low_noise_model.__class__.forward = easycache_forward_
+        wan_i2v.high_noise_model.__class__.forward = easycache_forward_
 
         logging.info("Generating video ...")
         video = wan_i2v.generate(
