@@ -45,7 +45,8 @@ https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
 
 ## 📰 News
 - **If you like our project, please give us a star ⭐ on GitHub for the latest update.**
-- **[2025/07/30]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) TI2V-5B is released. Thanks [@AChowdhury1211](https://github.com/AChowdhury1211).
+- **[2025/07/31]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.2) T2V-A14B is released.
+- **[2025/07/30]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.2) TI2V-5B is released. Thanks [@AChowdhury1211](https://github.com/AChowdhury1211).
 - **[2025/07/06]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) I2V is released.
 - **[2025/07/05]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) T2V is released.
 - **[2025/07/04]** 🎉 Release the [**paper**](https://arxiv.org/abs/2507.02860) of EasyCache.
@@ -99,26 +100,14 @@ EasyCache is orthogonal to other acceleration techniques, such as the efficient 
 ## 🛠️ Usage
 Detailed instructions for each supported model are provided in their respective directories. We are continuously working to extend support to more models.
 
-### HunyuanVideo
-1. **Prerequisites**: Set up the environment and download weights from the official HunyuanVideo repository.
-2. **Copy Files**: Place the EasyCache script files into your local HunyuanVideo project directory.
-3. **Run**: Execute the provided Python script to run inference with acceleration.
-**For complete instructions, please refer to the [README](./EasyCache4HunyuanVideo/README.md).**
-
-### Wan2.1
-1. **Prerequisites**: Set up the environment and download weights from the official Wan2.1 repository.
-2. **Copy Files**: Place the EasyCache script files into your local Wan2.1 project directory.
-3. **Run**: Execute the provided Python script to run inference with acceleration.
-**For complete instructions, please refer to the [README](./EasyCache4Wan2.1/README.md).**
-
 ## 🎯 To Do
 
 - [x] Support HunyuanVideo
 - [x] Support Sparse-VideoGen on HunyuanVideo
-- [x] Support Wan2.1 T2V
-- [x] Support Wan2.1 I2V
-- [x] Support Wan2.2 TI2V
-- [ ] Support Wan2.2 T2V
+- [x] Support Wan2.1 T2V-1.3B/14B
+- [x] Support Wan2.1 I2V-14B
+- [x] Support Wan2.2 TI2V-5B
+- [X] Support Wan2.2 T2V-A14B
 - [ ] Support Wan2.2 I2V
 
 ## 🌹 Acknowledgements

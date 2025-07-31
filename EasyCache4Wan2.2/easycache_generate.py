@@ -84,6 +84,419 @@ def _prepare_model_for_timestep(self, t, boundary, offload_model):
             getattr(self, required_model_name).to(self.device)
     return getattr(self, required_model_name)
 
+
+def t2v_generate(self,
+                 input_prompt,
+                 size=(1280, 720),
+                 frame_num=81,
+                 shift=5.0,
+                 sample_solver='unipc',
+                 sampling_steps=50,
+                 guide_scale=5.0,
+                 n_prompt="",
+                 seed=-1,
+                 offload_model=True):
+    r"""
+    Generates video frames from text prompt using diffusion process.
+    Args:
+        input_prompt (`str`):
+            Text prompt for content generation
+        size (tupele[`int`], *optional*, defaults to (1280,720)):
+            Controls video resolution, (width,height).
+        frame_num (`int`, *optional*, defaults to 81):
+            How many frames to sample from a video. The number should be 4n+1
+        shift (`float`, *optional*, defaults to 5.0):
+            Noise schedule shift parameter. Affects temporal dynamics
+        sample_solver (`str`, *optional*, defaults to 'unipc'):
+            Solver used to sample the video.
+        sampling_steps (`int`, *optional*, defaults to 40):
+            Number of diffusion sampling steps. Higher values improve quality but slow generation
+        guide_scale (`float`, *optional*, defaults 5.0):
+            Classifier-free guidance scale. Controls prompt adherence vs. creativity
+        n_prompt (`str`, *optional*, defaults to ""):
+            Negative prompt for content exclusion. If not given, use `config.sample_neg_prompt`
+        seed (`int`, *optional*, defaults to -1):
+            Random seed for noise generation. If -1, use random seed.
+        offload_model (`bool`, *optional*, defaults to True):
+            If True, offloads models to CPU during generation to save VRAM
+    Returns:
+        torch.Tensor:
+            Generated video frames tensor. Dimensions: (C, N H, W) where:
+            - C: Color channels (3 for RGB)
+            - N: Number of frames (81)
+            - H: Frame height (from size)
+            - W: Frame width from size)
+    """
+    # preprocess
+    guide_scale = (guide_scale, guide_scale) if isinstance(
+        guide_scale, float) else guide_scale
+    F = frame_num
+    target_shape = (self.vae.model.z_dim, (F - 1) // self.vae_stride[0] + 1,
+                    size[1] // self.vae_stride[1],
+                    size[0] // self.vae_stride[2])
+
+    seq_len = math.ceil((target_shape[2] * target_shape[3]) /
+                        (self.patch_size[1] * self.patch_size[2]) *
+                        target_shape[1] / self.sp_size) * self.sp_size
+
+    if n_prompt == "":
+        n_prompt = self.sample_neg_prompt
+    seed = seed if seed >= 0 else random.randint(0, sys.maxsize)
+    seed_g = torch.Generator(device=self.device)
+    seed_g.manual_seed(seed)
+
+    if not self.t5_cpu:
+        self.text_encoder.model.to(self.device)
+        context = self.text_encoder([input_prompt], self.device)
+        context_null = self.text_encoder([n_prompt], self.device)
+        if offload_model:
+            self.text_encoder.model.cpu()
+    else:
+        context = self.text_encoder([input_prompt], torch.device('cpu'))
+        context_null = self.text_encoder([n_prompt], torch.device('cpu'))
+        context = [t.to(self.device) for t in context]
+        context_null = [t.to(self.device) for t in context_null]
+
+    noise = [
+        torch.randn(
+            target_shape[0],
+            target_shape[1],
+            target_shape[2],
+            target_shape[3],
+            dtype=torch.float32,
+            device=self.device,
+            generator=seed_g)
+    ]
+
+    @contextmanager
+    def noop_no_sync():
+        yield
+
+    no_sync_low_noise = getattr(self.low_noise_model, 'no_sync',
+                                noop_no_sync)
+    no_sync_high_noise = getattr(self.high_noise_model, 'no_sync',
+                                 noop_no_sync)
+
+    # evaluation mode
+    with (
+        torch.amp.autocast('cuda', dtype=self.param_dtype),
+        torch.no_grad(),
+        no_sync_low_noise(),
+        no_sync_high_noise(),
+    ):
+        boundary = self.boundary * self.num_train_timesteps
+
+        if sample_solver == 'unipc':
+            sample_scheduler = FlowUniPCMultistepScheduler(
+                num_train_timesteps=self.num_train_timesteps,
+                shift=1,
+                use_dynamic_shifting=False)
+            sample_scheduler.set_timesteps(
+                sampling_steps, device=self.device, shift=shift)
+            timesteps = sample_scheduler.timesteps
+        elif sample_solver == 'dpm++':
+            sample_scheduler = FlowDPMSolverMultistepScheduler(
+                num_train_timesteps=self.num_train_timesteps,
+                shift=1,
+                use_dynamic_shifting=False)
+            sampling_sigmas = get_sampling_sigmas(sampling_steps, shift)
+            timesteps, _ = retrieve_timesteps(
+                sample_scheduler,
+                device=self.device,
+                sigmas=sampling_sigmas)
+        else:
+            raise NotImplementedError("Unsupported solver.")
+
+        # sample videos
+        latents = noise
+
+        arg_c = {'context': context, 'seq_len': seq_len}
+        arg_null = {'context': context_null, 'seq_len': seq_len}
+        self.low_start_step = np.where(timesteps.cpu().numpy() < boundary)[0][0]
+
+        for _, t in enumerate(tqdm(timesteps)):
+            latent_model_input = latents
+            timestep = [t]
+
+            timestep = torch.stack(timestep)
+
+            model = self._prepare_model_for_timestep(
+                t, boundary, offload_model)
+            sample_guide_scale = guide_scale[1] if t.item(
+            ) >= boundary else guide_scale[0]
+            model.low_start_step = self.low_start_step
+
+            noise_pred_cond = model(
+                latent_model_input, t=timestep, **arg_c)[0]
+            noise_pred_uncond = model(
+                latent_model_input, t=timestep, **arg_null)[0]
+
+            noise_pred = noise_pred_uncond + sample_guide_scale * (
+                    noise_pred_cond - noise_pred_uncond)
+
+            temp_x0 = sample_scheduler.step(
+                noise_pred.unsqueeze(0),
+                t,
+                latents[0].unsqueeze(0),
+                return_dict=False,
+                generator=seed_g)[0]
+            latents = [temp_x0.squeeze(0)]
+
+        x0 = latents
+        if offload_model:
+            self.low_noise_model.cpu()
+            self.high_noise_model.cpu()
+            torch.cuda.empty_cache()
+        if self.rank == 0:
+            videos = self.vae.decode(x0)
+
+    del noise, latents
+    del sample_scheduler
+    if offload_model:
+        gc.collect()
+        torch.cuda.synchronize()
+    if dist.is_initialized():
+        dist.barrier()
+
+    return videos[0] if self.rank == 0 else None
+
+
+def i2v_generate(self,
+                 input_prompt,
+                 img,
+                 max_area=720 * 1280,
+                 frame_num=81,
+                 shift=5.0,
+                 sample_solver='unipc',
+                 sampling_steps=40,
+                 guide_scale=5.0,
+                 n_prompt="",
+                 seed=-1,
+                 offload_model=True):
+    r"""
+    Generates video frames from input image and text prompt using diffusion process.
+    Args:
+        input_prompt (`str`):
+            Text prompt for content generation.
+        img (PIL.Image.Image):
+            Input image tensor. Shape: [3, H, W]
+        max_area (`int`, *optional*, defaults to 720*1280):
+            Maximum pixel area for latent space calculation. Controls video resolution scaling
+        frame_num (`int`, *optional*, defaults to 81):
+            How many frames to sample from a video. The number should be 4n+1
+        shift (`float`, *optional*, defaults to 5.0):
+            Noise schedule shift parameter. Affects temporal dynamics
+            [NOTE]: If you want to generate a 480p video, it is recommended to set the shift value to 3.0.
+        sample_solver (`str`, *optional*, defaults to 'unipc'):
+            Solver used to sample the video.
+        sampling_steps (`int`, *optional*, defaults to 40):
+            Number of diffusion sampling steps. Higher values improve quality but slow generation
+        guide_scale (`float`, *optional*, defaults 5.0):
+            Classifier-free guidance scale. Controls prompt adherence vs. creativity
+        n_prompt (`str`, *optional*, defaults to ""):
+            Negative prompt for content exclusion. If not given, use `config.sample_neg_prompt`
+        seed (`int`, *optional*, defaults to -1):
+            Random seed for noise generation. If -1, use random seed
+        offload_model (`bool`, *optional*, defaults to True):
+            If True, offloads models to CPU during generation to save VRAM
+    Returns:
+        torch.Tensor:
+            Generated video frames tensor. Dimensions: (C, N H, W) where:
+            - C: Color channels (3 for RGB)
+            - N: Number of frames (81)
+            - H: Frame height (from max_area)
+            - W: Frame width from max_area)
+    """
+    guide_scale = (guide_scale, guide_scale) if isinstance(
+        guide_scale, float) else guide_scale
+    img = TF.to_tensor(img).sub_(0.5).div_(0.5).to(self.device)
+
+    F = frame_num
+    h, w = img.shape[1:]
+    aspect_ratio = h / w
+    lat_h = round(
+        np.sqrt(max_area * aspect_ratio) // self.vae_stride[1] //
+        self.patch_size[1] * self.patch_size[1])
+    lat_w = round(
+        np.sqrt(max_area / aspect_ratio) // self.vae_stride[2] //
+        self.patch_size[2] * self.patch_size[2])
+    h = lat_h * self.vae_stride[1]
+    w = lat_w * self.vae_stride[2]
+
+    max_seq_len = ((F - 1) // self.vae_stride[0] + 1) * lat_h * lat_w // (
+            self.patch_size[1] * self.patch_size[2])
+    max_seq_len = int(math.ceil(max_seq_len / self.sp_size)) * self.sp_size
+
+    seed = seed if seed >= 0 else random.randint(0, sys.maxsize)
+    seed_g = torch.Generator(device=self.device)
+    seed_g.manual_seed(seed)
+    noise = torch.randn(
+        self.vae.model.z_dim,
+        (F - 1) // self.vae_stride[0] + 1,
+        lat_h,
+        lat_w,
+        dtype=torch.float32,
+        generator=seed_g,
+        device=self.device)
+
+    msk = torch.ones(1, F, lat_h, lat_w, device=self.device)
+    msk[:, 1:] = 0
+    msk = torch.concat([
+        torch.repeat_interleave(msk[:, 0:1], repeats=4, dim=1), msk[:, 1:]
+    ],
+        dim=1)
+    msk = msk.view(1, msk.shape[1] // 4, 4, lat_h, lat_w)
+    msk = msk.transpose(1, 2)[0]
+
+    if n_prompt == "":
+        n_prompt = self.sample_neg_prompt
+
+    # preprocess
+    if not self.t5_cpu:
+        self.text_encoder.model.to(self.device)
+        context = self.text_encoder([input_prompt], self.device)
+        context_null = self.text_encoder([n_prompt], self.device)
+        if offload_model:
+            self.text_encoder.model.cpu()
+    else:
+        context = self.text_encoder([input_prompt], torch.device('cpu'))
+        context_null = self.text_encoder([n_prompt], torch.device('cpu'))
+        context = [t.to(self.device) for t in context]
+        context_null = [t.to(self.device) for t in context_null]
+
+    self.clip.model.to(self.device)
+    clip_context = self.clip.visual([img[:, None, :, :]])
+    if offload_model:
+        self.clip.model.cpu()
+
+    y = self.vae.encode([
+        torch.concat([
+            torch.nn.functional.interpolate(
+                img[None].cpu(), size=(h, w), mode='bicubic').transpose(
+                0, 1),
+            torch.zeros(3, F - 1, h, w)
+        ],
+            dim=1).to(self.device)
+    ])[0]
+    y = torch.concat([msk, y])
+
+    @contextmanager
+    def noop_no_sync():
+        yield
+
+    no_sync_low_noise = getattr(self.low_noise_model, 'no_sync',
+                                noop_no_sync)
+    no_sync_high_noise = getattr(self.high_noise_model, 'no_sync',
+                                 noop_no_sync)
+
+    # evaluation mode
+    with (
+        torch.amp.autocast('cuda', dtype=self.param_dtype),
+        torch.no_grad(),
+        no_sync_low_noise(),
+        no_sync_high_noise(),
+    ):
+        boundary = self.boundary * self.num_train_timesteps
+
+        if sample_solver == 'unipc':
+            sample_scheduler = FlowUniPCMultistepScheduler(
+                num_train_timesteps=self.num_train_timesteps,
+                shift=1,
+                use_dynamic_shifting=False)
+            sample_scheduler.set_timesteps(
+                sampling_steps, device=self.device, shift=shift)
+            timesteps = sample_scheduler.timesteps
+        elif sample_solver == 'dpm++':
+            sample_scheduler = FlowDPMSolverMultistepScheduler(
+                num_train_timesteps=self.num_train_timesteps,
+                shift=1,
+                use_dynamic_shifting=False)
+            sampling_sigmas = get_sampling_sigmas(sampling_steps, shift)
+            timesteps, _ = retrieve_timesteps(
+                sample_scheduler,
+                device=self.device,
+                sigmas=sampling_sigmas)
+        else:
+            raise NotImplementedError("Unsupported solver.")
+
+        # sample videos
+        latent = noise
+
+        arg_c = {
+            'context': [context[0]],
+            'clip_fea': clip_context,
+            'seq_len': max_seq_len,
+            'y': [y],
+            # 'cond_flag': True,
+        }
+
+        arg_null = {
+            'context': context_null,
+            'clip_fea': clip_context,
+            'seq_len': max_seq_len,
+            'y': [y],
+            # 'cond_flag': False,
+        }
+
+        if offload_model:
+            torch.cuda.empty_cache()
+
+        self.model.to(self.device)
+        for _, t in enumerate(tqdm(timesteps)):
+            latent_model_input = [latent.to(self.device)]
+            timestep = [t]
+
+            timestep = torch.stack(timestep).to(self.device)
+
+            model = self._prepare_model_for_timestep(
+                t, boundary, offload_model)
+            sample_guide_scale = guide_scale[1] if t.item(
+            ) >= boundary else guide_scale[0]
+
+            noise_pred_cond = model(
+                latent_model_input, t=timestep, **arg_c)[0]
+            if offload_model:
+                torch.cuda.empty_cache()
+            noise_pred_uncond = model(
+                latent_model_input, t=timestep, **arg_null)[0]
+            if offload_model:
+                torch.cuda.empty_cache()
+            noise_pred = noise_pred_uncond + sample_guide_scale * (
+                    noise_pred_cond - noise_pred_uncond)
+
+            latent = latent.to(
+                torch.device('cpu') if offload_model else self.device)
+
+            temp_x0 = sample_scheduler.step(
+                noise_pred.unsqueeze(0),
+                t,
+                latent.unsqueeze(0),
+                return_dict=False,
+                generator=seed_g)[0]
+            latent = temp_x0.squeeze(0)
+
+            x0 = [latent.to(self.device)]
+            del latent_model_input, timestep
+
+        if offload_model:
+            self.low_noise_model.cpu()
+            self.high_noise_model.cpu()
+            torch.cuda.empty_cache()
+
+        if self.rank == 0:
+            videos = self.vae.decode(x0)
+
+    del noise, latent
+    del sample_scheduler
+    if offload_model:
+        gc.collect()
+        torch.cuda.synchronize()
+    if dist.is_initialized():
+        dist.barrier()
+
+    return videos[0] if self.rank == 0 else None
+
+
 def easycache_forward(
         self,
         x,
@@ -276,6 +689,167 @@ def easycache_forward(
     return [u.float() for u in output]
 
 
+def easycache_forward_(
+        self,
+        x,
+        t,
+        context,
+        seq_len,
+        clip_fea=None,
+        y=None,
+):
+    """
+    Args:
+        x (List[Tensor]): List of input video tensors with shape [C_in, F, H, W]
+        t (Tensor): Diffusion timesteps tensor of shape [B]
+        context (List[Tensor]): List of text embeddings each with shape [L, C]
+        seq_len (int): Maximum sequence length for positional encoding
+        clip_fea (Tensor, optional): CLIP image features for image-to-video mode
+        y (List[Tensor], optional): Conditional video inputs for image-to-video mode
+    Returns:
+        List[Tensor]: List of denoised video tensors with original input shapes
+    """
+    if self.model_type == 'i2v':
+        assert y is not None
+
+    # Store original raw input for end-to-end caching
+    raw_input = [u.clone() for u in x]
+
+    # params
+    device = self.patch_embedding.weight.device
+    if self.freqs.device != device:
+        self.freqs = self.freqs.to(device)
+
+    if y is not None:
+        x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
+
+    global GLOBAL_CNT, GLOBAL_NUM_STEPS, GLOBAL_THRESH, GLOBAL_ACCUMULATED_ERROR_EVEN
+    global GLOBAL_SHOULD_CALC_CURRENT_PAIR, GLOBAL_K, GLOBAL_PREVIOUS_RAW_INPUT_EVEN
+    global GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN, GLOBAL_PREVIOUS_RAW_OUTPUT_ODD
+    global GLOBAL_PREV_PREV_RAW_INPUT_EVEN, GLOBAL_CACHE_EVEN, GLOBAL_CACHE_ODD
+    global GLOBAL_RET_STEPS
+
+    # Track which type of step (even=condition, odd=uncondition)
+    is_even = (GLOBAL_CNT % 2 == 0)
+
+    # Only make decision on even (condition) steps
+    if is_even:
+        # Always compute first ret_steps and last steps
+        if GLOBAL_CNT < GLOBAL_RET_STEPS or GLOBAL_CNT >= (GLOBAL_NUM_STEPS - 2):
+            GLOBAL_SHOULD_CALC_CURRENT_PAIR = True
+            GLOBAL_ACCUMULATED_ERROR_EVEN = 0
+        else:
+            if GLOBAL_PREVIOUS_RAW_INPUT_EVEN is not None and GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN is not None:
+                raw_input_change = torch.cat([
+                    (u - v).flatten() for u, v in zip(raw_input, GLOBAL_PREVIOUS_RAW_INPUT_EVEN)
+                ]).abs().mean()
+                if GLOBAL_K is not None:
+                    output_norm = torch.cat([
+                        u.flatten() for u in GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN
+                    ]).abs().mean()
+                    pred_change = GLOBAL_K * (raw_input_change / output_norm)
+                    combined_pred_change = pred_change
+                    GLOBAL_ACCUMULATED_ERROR_EVEN += combined_pred_change
+                    if GLOBAL_ACCUMULATED_ERROR_EVEN < GLOBAL_THRESH:
+                        GLOBAL_SHOULD_CALC_CURRENT_PAIR = False
+                    else:
+                        GLOBAL_SHOULD_CALC_CURRENT_PAIR = True
+                        GLOBAL_ACCUMULATED_ERROR_EVEN = 0
+                else:
+                    GLOBAL_SHOULD_CALC_CURRENT_PAIR = True
+            else:
+                GLOBAL_SHOULD_CALC_CURRENT_PAIR = True
+        GLOBAL_PREVIOUS_RAW_INPUT_EVEN = [u.clone() for u in raw_input]
+
+    # Check if we can use cached output and return early
+    if is_even and not GLOBAL_SHOULD_CALC_CURRENT_PAIR and GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN is not None:
+        GLOBAL_CNT += 1
+        return [(u + v).float() for u, v in zip(raw_input, GLOBAL_CACHE_EVEN)]
+    elif not is_even and not GLOBAL_SHOULD_CALC_CURRENT_PAIR and GLOBAL_PREVIOUS_RAW_OUTPUT_ODD is not None:
+        GLOBAL_CNT += 1
+        return [(u + v).float() for u, v in zip(raw_input, GLOBAL_CACHE_ODD)]
+
+    # Continue with normal processing since we need to calculate
+    # embeddings
+    x = [self.patch_embedding(u.unsqueeze(0)) for u in x]
+    grid_sizes = torch.stack(
+        [torch.tensor(u.shape[2:], dtype=torch.long) for u in x])
+    x = [u.flatten(2).transpose(1, 2) for u in x]
+    seq_lens = torch.tensor([u.size(1) for u in x], dtype=torch.long)
+    assert seq_lens.max() <= seq_len
+    x = torch.cat([
+        torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))],
+                  dim=1) for u in x
+    ])
+
+    # time embeddings
+    if t.dim() == 1:
+        t = t.expand(t.size(0), seq_len)
+    with torch.amp.autocast('cuda', dtype=torch.float32):
+        bt = t.size(0)
+        t = t.flatten()
+        e = self.time_embedding(
+            sinusoidal_embedding_1d(self.freq_dim,
+                                    t).unflatten(0, (bt, seq_len)).float())
+        e0 = self.time_projection(e).unflatten(2, (6, self.dim))
+        assert e.dtype == torch.float32 and e0.dtype == torch.float32
+
+    # context
+    context_lens = None
+    context = self.text_embedding(
+        torch.stack([
+            torch.cat(
+                [u, u.new_zeros(self.text_len - u.size(0), u.size(1))])
+            for u in context
+        ]))
+
+    if clip_fea is not None:
+        context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
+        context = torch.concat([context_clip, context], dim=1)
+
+    # arguments
+    kwargs = dict(
+        e=e0,
+        seq_lens=seq_lens,
+        grid_sizes=grid_sizes,
+        freqs=self.freqs,
+        context=context,
+        context_lens=context_lens)
+
+    # Apply transformer blocks
+    for block in self.blocks:
+        x = block(x, **kwargs)
+
+    # Apply head
+    x = self.head(x, e)
+
+    # Unpatchify
+    output = self.unpatchify(x, grid_sizes)
+
+    # Update cache and calculate change rates if needed
+    if is_even:  # Condition path
+        if GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN is not None:
+            output_change = torch.cat([
+                (u - v).flatten() for u, v in zip(output, GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN)
+            ]).abs().mean()
+            if GLOBAL_PREV_PREV_RAW_INPUT_EVEN is not None:
+                input_change = torch.cat([
+                    (u - v).flatten() for u, v in zip(
+                        GLOBAL_PREVIOUS_RAW_INPUT_EVEN, GLOBAL_PREV_PREV_RAW_INPUT_EVEN
+                    )
+                ]).abs().mean()
+                GLOBAL_K = output_change / input_change
+        GLOBAL_PREV_PREV_RAW_INPUT_EVEN = GLOBAL_PREVIOUS_RAW_INPUT_EVEN
+        GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN = [u.clone() for u in output]
+        GLOBAL_CACHE_EVEN = [u - v for u, v in zip(output, raw_input)]
+    else:  # Uncondition path
+        GLOBAL_PREVIOUS_RAW_OUTPUT_ODD = [u.clone() for u in output]
+        GLOBAL_CACHE_ODD = [u - v for u, v in zip(output, raw_input)]
+
+    GLOBAL_CNT += 1
+    return [u.float() for u in output]
+
+
 def _validate_args(args):
     # Basic check
     assert args.ckpt_dir is not None, "Please specify the checkpoint directory."
@@ -437,29 +1011,14 @@ def _parse_args():
         default=0.05,
         help="Threshold for EasyCache decision making")
     parser.add_argument(
-        "--thresh_high",
+        "--thresh_t2v",
         type=float,
-        default=0.08,
-        help="Threshold for EasyCache decision making")
-    parser.add_argument(
-        "--thresh_low",
-        type=float,
-        default=0.07,
+        default=0.06,
         help="Threshold for EasyCache decision making")
     parser.add_argument(
         "--ret_steps",
         type=int,
-        default=8,
-        help="Number of steps to retain in cache")
-    parser.add_argument(
-        "--ret_steps_high",
-        type=int,
-        default=10,
-        help="Number of steps to retain in cache")
-    parser.add_argument(
-        "--ret_steps_low",
-        type=int,
-        default=2,
+        default=7,
         help="Number of steps to retain in cache")
 
     args = parser.parse_args()
@@ -570,6 +1129,26 @@ def generate(args):
         logging.info(f"Extended prompt: {args.prompt}")
 
     if "t2v" in args.task:
+        global GLOBAL_CNT, GLOBAL_NUM_STEPS, GLOBAL_THRESH, GLOBAL_ACCUMULATED_ERROR_EVEN
+        global GLOBAL_SHOULD_CALC_CURRENT_PAIR, GLOBAL_K, GLOBAL_PREVIOUS_RAW_INPUT_EVEN
+        global GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN, GLOBAL_PREVIOUS_RAW_OUTPUT_ODD
+        global GLOBAL_PREV_PREV_RAW_INPUT_EVEN, GLOBAL_CACHE_EVEN, GLOBAL_CACHE_ODD
+        global GLOBAL_RET_STEPS
+
+        GLOBAL_CNT = 0
+        GLOBAL_NUM_STEPS = args.sample_steps * 2
+        GLOBAL_THRESH = args.thresh_t2v
+        GLOBAL_ACCUMULATED_ERROR_EVEN = 0
+        GLOBAL_SHOULD_CALC_CURRENT_PAIR = True
+        GLOBAL_K = None
+        GLOBAL_PREVIOUS_RAW_INPUT_EVEN = None
+        GLOBAL_PREVIOUS_RAW_OUTPUT_EVEN = None
+        GLOBAL_PREVIOUS_RAW_OUTPUT_ODD = None
+        GLOBAL_PREV_PREV_RAW_INPUT_EVEN = None
+        GLOBAL_CACHE_EVEN = None
+        GLOBAL_CACHE_ODD = None
+        GLOBAL_RET_STEPS = args.ret_steps * 2
+
         logging.info("Creating WanT2V pipeline.")
         wan_t2v = wan.WanT2V(
             config=cfg,
@@ -582,41 +1161,10 @@ def generate(args):
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
         )
-        # TODO: has not been tested for MoE models
+
         # EasyCache setup
-        wan_t2v.__class__.low_start_step = 0
-        # low_noise_model
-        wan_t2v.low_noise_model.__class__.forward = easycache_forward
-        wan_t2v.low_noise_model.__class__.cnt = 0
-        wan_t2v.low_noise_model.__class__.num_steps = args.sample_steps
-        wan_t2v.low_noise_model.__class__.thresh = args.thresh_low
-        wan_t2v.low_noise_model.__class__.accumulated_error_even = 0
-        wan_t2v.low_noise_model.__class__.should_calc_current_pair = True
-        wan_t2v.low_noise_model.__class__.k = None
-        wan_t2v.low_noise_model.__class__.previous_raw_input_even = None
-        wan_t2v.low_noise_model.__class__.previous_raw_output_even = None
-        wan_t2v.low_noise_model.__class__.previous_raw_output_odd = None
-        wan_t2v.low_noise_model.__class__.prev_prev_raw_input_even = None
-        wan_t2v.low_noise_model.__class__.cache_even = None
-        wan_t2v.low_noise_model.__class__.cache_odd = None
-        wan_t2v.low_noise_model.__class__.ret_steps = args.ret_steps_low * 2
-        wan_t2v.low_noise_model.__class__.is_high_noise = False
-        # high_noise_model
-        wan_t2v.high_noise_model.__class__.forward = easycache_forward
-        wan_t2v.high_noise_model.__class__.cnt = 0
-        wan_t2v.high_noise_model.__class__.num_steps = args.sample_steps
-        wan_t2v.high_noise_model.__class__.thresh = args.thresh_high
-        wan_t2v.high_noise_model.__class__.accumulated_error_even = 0
-        wan_t2v.high_noise_model.__class__.should_calc_current_pair = True
-        wan_t2v.high_noise_model.__class__.k = None
-        wan_t2v.high_noise_model.__class__.previous_raw_input_even = None
-        wan_t2v.high_noise_model.__class__.previous_raw_output_even = None
-        wan_t2v.high_noise_model.__class__.previous_raw_output_odd = None
-        wan_t2v.high_noise_model.__class__.prev_prev_raw_input_even = None
-        wan_t2v.high_noise_model.__class__.cache_even = None
-        wan_t2v.high_noise_model.__class__.cache_odd = None
-        wan_t2v.high_noise_model.__class__.ret_steps = args.ret_steps_high * 2
-        wan_t2v.high_noise_model.__class__.is_high_noise = True
+        wan_t2v.low_noise_model.__class__.forward = easycache_forward_
+        wan_t2v.high_noise_model.__class__.forward = easycache_forward_
 
         logging.info(f"Generating video ...")
         video = wan_t2v.generate(
@@ -686,40 +1234,6 @@ def generate(args):
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
         )
-        # TODO: has not been tested for MoE models
-        # EasyCache setup
-        # low_noise_model
-        wan_i2v.low_noise_model.__class__.forward = easycache_forward
-        wan_i2v.low_noise_model.__class__.cnt = 0
-        wan_i2v.low_noise_model.__class__.num_steps = args.sample_steps * 2
-        wan_i2v.low_noise_model.__class__.thresh = args.thresh
-        wan_i2v.low_noise_model.__class__.accumulated_error_even = 0
-        wan_i2v.low_noise_model.__class__.should_calc_current_pair = True
-        wan_i2v.low_noise_model.__class__.k = None
-        wan_i2v.low_noise_model.__class__.previous_raw_input_even = None
-        wan_i2v.low_noise_model.__class__.previous_raw_output_even = None
-        wan_i2v.low_noise_model.__class__.previous_raw_output_odd = None
-        wan_i2v.low_noise_model.__class__.prev_prev_raw_input_even = None
-        wan_i2v.low_noise_model.__class__.cache_even = None
-        wan_i2v.low_noise_model.__class__.cache_odd = None
-        wan_i2v.low_noise_model.__class__.ret_steps = args.ret_steps_low * 2
-        wan_i2v.low_noise_model.__class__.cutoff_steps = args.cutoff_steps if args.cutoff_steps is not None else args.sample_steps * 2 - 2
-        # high_noise_model
-        wan_i2v.high_noise_model.__class__.forward = easycache_forward
-        wan_i2v.high_noise_model.__class__.cnt = 0
-        wan_i2v.high_noise_model.__class__.num_steps = args.sample_steps * 2
-        wan_i2v.high_noise_model.__class__.thresh = args.thresh
-        wan_i2v.high_noise_model.__class__.accumulated_error_even = 0
-        wan_i2v.high_noise_model.__class__.should_calc_current_pair = True
-        wan_i2v.high_noise_model.__class__.k = None
-        wan_i2v.high_noise_model.__class__.previous_raw_input_even = None
-        wan_i2v.high_noise_model.__class__.previous_raw_output_even = None
-        wan_i2v.high_noise_model.__class__.previous_raw_output_odd = None
-        wan_i2v.high_noise_model.__class__.prev_prev_raw_input_even = None
-        wan_i2v.high_noise_model.__class__.cache_even = None
-        wan_i2v.high_noise_model.__class__.cache_odd = None
-        wan_i2v.high_noise_model.__class__.ret_steps = args.ret_steps_high * 2
-        wan_i2v.high_noise_model.__class__.cutoff_steps = args.cutoff_steps if args.cutoff_steps is not None else args.sample_steps * 2 - 2
 
         logging.info("Generating video ...")
         video = wan_i2v.generate(

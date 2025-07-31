@@ -24,16 +24,35 @@ This document provides the implementation for accelerating the [**Wan2.2**](http
 > This is a nightly preview version that has only been tested on Wan2.2-TI2V-5B.
 
 ### ✨ Visual Comparison
+<details>
+<summary>Prompt: "The camera follows behind a white vintage SUV with a black roof rack ...</summary>
+<p>
+Prompt: "The camera follows behind a white vintage SUV with a black roof rack as it speeds up a steep dirt road surrounded by pine trees on a steep mountain slope, dust kicks up from it’s tires, the sunlight shines on the SUV as it speeds along the dirt road, casting a warm glow over the scene. The dirt road curves gently into the distance, with no other cars or vehicles in sight. The trees on either side of the road are redwoods, with patches of greenery scattered throughout. The car is seen from the rear following the curve with ease, making it seem as if it is on a rugged drive through the rugged terrain. The dirt road itself is surrounded by steep hills and mountains, with a clear blue sky above with wispy clouds."
+</p>
+</details>
 
-**Prompt: "A campfire burns in a sunlit forest clearing, with bright sparks occasionally leaping out."**
+|         Wan2.2-T2V-A14B (720p, H20)         |          EasyCache (Ours, 720p, H20)           |
+|:-------------------------------------------:|:----------------------------------------------:|
+| ![Baseline Video](./videos/t2v-A14B-gt.gif) | ![t2v-A14B-ours.gif](videos/t2v-A14B-ours.gif) |
+|          **Inference Time: ~5729s**          |   **Inference Time: ~2603s (~2.2x Speedup)**   |
+
+<details>
+<summary>Prompt: "A campfire burns in a sunlit forest clearing ...</summary>
+<p>
+Prompt: "A campfire burns in a sunlit forest clearing, with bright sparks occasionally leaping out."</p>
+</details>
 
 | Wan2.1-TI2V-5B (T2V task, 720p, H20) | EasyCache (Ours, 720p, H20) |
 | :---: | :---: |
 | ![Baseline Video](./videos/ti2v-5B-t2v-gt.gif) | ![Our Video](./videos/ti2v-5B-t2v-ours.gif) |
 | **Inference Time: ~578s** | **Inference Time: ~255s (~2.3x Speedup)** |
 
-
-**Prompt: "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard. The fluffy-furred feline gazes directly at the camera with a relaxed expression. Blurred beach scenery forms the background featuring crystal-clear waters, distant green hills, and a blue sky dotted with white clouds. The cat assumes a naturally relaxed posture, as if savoring the sea breeze and warm sunlight. A close-up shot highlights the feline's intricate details and the refreshing atmosphere of the seaside."**
+<details>
+<summary>Prompt: "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard ...</summary>
+<p>
+Prompt: "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard. The fluffy-furred feline gazes directly at the camera with a relaxed expression. Blurred beach scenery forms the background featuring crystal-clear waters, distant green hills, and a blue sky dotted with white clouds. The cat assumes a naturally relaxed posture, as if savoring the sea breeze and warm sunlight. A close-up shot highlights the feline's intricate details and the refreshing atmosphere of the seaside."
+</p>
+</details>
 
 | Wan2.2-TI2V-5B (I2V task, 720p, H20) | EasyCache (Ours, 720p, H20) |
 | :---: | :---: |
@@ -54,10 +73,19 @@ Copy `easycache_generate.py` into the root directory of your local `Wan2.2` proj
 
 **c. Run Inference** ▶️
 
-#### **1. EasyCache Acceleration for Wan2.1 TI2V-5B (T2V task)**
+#### **1. EasyCache Acceleration for Wan2.2 T2V-A14B**
+```bash
+python easycache_generate.py \
+  --task t2v-A14B \
+  --size "1280*720" \
+  --ckpt_dir ./Wan2.2-T2V-A14B \
+  --offload_model True \
+  --convert_model_dtype \
+  --prompt "The camera follows behind a white vintage SUV with a black roof rack as it speeds up a steep dirt road surrounded by pine trees on a steep mountain slope, dust kicks up from it’s tires, the sunlight shines on the SUV as it speeds along the dirt road, casting a warm glow over the scene. The dirt road curves gently into the distance, with no other cars or vehicles in sight. The trees on either side of the road are redwoods, with patches of greenery scattered throughout. The car is seen from the rear following the curve with ease, making it seem as if it is on a rugged drive through the rugged terrain. The dirt road itself is surrounded by steep hills and mountains, with a clear blue sky above with wispy clouds." \
+  --base_seed 42
+```
 
-Execute the following command from the root of the `Wan2.2` project to generate a video. You can also specify your own custom prompts.
-
+#### **2. EasyCache Acceleration for Wan2.2 TI2V-5B (T2V task)**
 ```bash
 python easycache_generate.py \
   --task ti2v-5B \
@@ -66,9 +94,7 @@ python easycache_generate.py \
   --prompt "A campfire burns in a sunlit forest clearing, with bright sparks occasionally leaping out." \
   --base_seed 42
 ```
-#### **2. EasyCache Acceleration for Wan2.2 TI2V-5B (I2V task)**
-Execute the following command from the root of the `Wan2.2` project to generate a video. You can also specify your own custom prompts and images.
-
+#### **3. EasyCache Acceleration for Wan2.2 TI2V-5B (I2V task)**
 ```bash
 python easycache_generate.py \
   --task ti2v-5B \
