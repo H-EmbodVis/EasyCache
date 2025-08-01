@@ -45,6 +45,7 @@ https://github.com/user-attachments/assets/248ab88f-dfa8-4980-9b51-5c081e27db9a
 
 ## 📰 News
 - **If you like our project, please give us a star ⭐ on GitHub for the latest update.**
+- **[2025/08/01]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.2) I2V is released.
 - **[2025/07/31]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.2) T2V-A14B is released.
 - **[2025/07/30]** 🔥 EasyCache for [**Wan2.2**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.2) TI2V-5B is released. Thanks [@AChowdhury1211](https://github.com/AChowdhury1211).
 - **[2025/07/06]** 🔥 EasyCache for [**Wan2.1**](https://github.com/H-EmbodVis/EasyCache/tree/main/EasyCache4Wan2.1) I2V is released.
@@ -108,7 +109,7 @@ Detailed instructions for each supported model are provided in their respective 
 - [x] Support Wan2.1 I2V-14B
 - [x] Support Wan2.2 TI2V-5B
 - [X] Support Wan2.2 T2V-A14B
-- [ ] Support Wan2.2 I2V
+- [X] Support Wan2.2 I2V
 
 ## 🌹 Acknowledgements
 We would like to thank the contributors to the [Wan2.1](https://github.com/Wan-Video/Wan2.1), [HunyuanVideo](https://github.com/Tencent-Hunyuan/HunyuanVideo), [Wan2.2](https://github.com/Wan-Video/Wan2.2), [OpenSora](https://github.com/hpcaitech/Open-Sora), and [SVG](https://github.com/svg-project/Sparse-VideoGen) repositories, for their open research and exploration.
