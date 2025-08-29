@@ -114,6 +114,7 @@ Detailed instructions for each supported model are provided in their respective 
 ## 🌹 Acknowledgements
 We would like to thank the contributors to the [Wan2.1](https://github.com/Wan-Video/Wan2.1), [HunyuanVideo](https://github.com/Tencent-Hunyuan/HunyuanVideo), [Wan2.2](https://github.com/Wan-Video/Wan2.2), [OpenSora](https://github.com/hpcaitech/Open-Sora), and [SVG](https://github.com/svg-project/Sparse-VideoGen) repositories, for their open research and exploration.
 - [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) supports EasyCache4Wan2.1/EasyCache4Wan2.2. Thanks [@kijai](https://github.com/kijai).
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) supports EasyCache for several model includes Kontext, Qwen Image Edit, Wan2.2 14B. Thanks [@Kosinkadink](https://github.com/Kosinkadink).
 
 ## 📖 Citation
 
