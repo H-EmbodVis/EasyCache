@@ -122,7 +122,7 @@ If you find this repository useful in your research, please consider giving a st
 ```bibtex
 @article{zhou2025easycache,
   title={Less is Enough: Training-Free Video Diffusion Acceleration via Runtime-Adaptive Caching},
-  author={Zhou, Xin and Liang, Dingkang and Chen, Kaijin and and Feng, Tianrui and Chen, Xiwu and Lin, Hongkai and Ding, Yikang and Tan, Feiyang and Zhao, Hengshuang and Bai, Xiang},
+  author={Zhou, Xin and Liang, Dingkang and Chen, Kaijin and Feng, Tianrui and Chen, Xiwu and Lin, Hongkai and Ding, Yikang and Tan, Feiyang and Zhao, Hengshuang and Bai, Xiang},
   journal={arXiv preprint arXiv:2507.02860},
   year={2025}
 }
